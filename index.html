@@ -108,6 +108,11 @@
         .reward-row:last-child { border:none; }
         .reward-label { font-size:0.85em; color:var(--text-muted); }
         .reward-val { font-size:1rem; font-weight:700; color:var(--primary); font-family:var(--mono); }
+
+        /* TASK FORM TOGGLE STYLES */
+        .task-type-selector { display:flex; gap:10px; margin-bottom:18px; }
+        .task-type-opt { flex:1; padding:12px; background:var(--bg-dark); border:1.5px solid var(--border-color); border-radius:10px; text-align:center; cursor:pointer; font-weight:700; font-size:0.85rem; color:var(--text-muted); transition:0.2s; }
+        .task-type-opt.active { background:rgba(26,111,245,0.1); border-color:var(--primary); color:white; }
     </style>
 </head>
 <body>
@@ -142,6 +147,7 @@
     <nav class="nav-buttons">
         <button class="nav-btn active" data-target="dashboard"><i class="fas fa-chart-simple"></i> Dashboard</button>
         <button class="nav-btn" data-target="users"><i class="fas fa-users"></i> Users</button>
+        <button class="nav-btn" data-target="add-task" style="border-color:var(--accent); color:var(--accent);"><i class="fas fa-plus-circle"></i> Create Task</button>
         <button class="nav-btn" data-target="withdrawals"><i class="fas fa-wallet"></i> Withdrawals <span id="nav-pending-count" style="background:var(--danger-color);color:white;padding:1px 6px;border-radius:10px;font-size:0.75em;display:none;margin-left:4px;">0</span></button>
         <button class="nav-btn" data-target="deposits" style="border-color:var(--warning-color); color:var(--warning-color);"><i class="fas fa-coins"></i> Deposit Requests</button>
         <button class="nav-btn" data-target="tasks-approval" style="border-color:var(--success-color); color:var(--success-color);"><i class="fas fa-clipboard-check"></i> Tasks Approval</button>
@@ -159,6 +165,67 @@
             <div class="dash-card"><h3>Pending Withdraw</h3><p class="count" id="dash-pending-withdrawals" style="color:var(--danger-color);">0</p></div>
             <div class="dash-card"><h3>Pending Deposits</h3><p class="count" id="dash-pending-deposits" style="color:var(--warning-color);">0</p></div>
             <div class="dash-card"><h3>Pending Tasks</h3><p class="count" id="dash-pending-tasks" style="color:var(--accent);">0</p></div>
+        </div>
+    </div>
+
+    <!-- ══ CREATE TASK ══ -->
+    <div id="add-task" class="admin-section">
+        <h2 style="color:var(--accent); margin-bottom:18px;">➕ Create Admin Task (Instantly Live)</h2>
+        <div style="max-width:540px; margin:0 auto; background:var(--bg-card); padding:26px; border-radius:18px; border:1.5px solid var(--accent); box-shadow:0 4px 15px rgba(14,165,233,0.1);">
+            
+            <div class="task-type-selector">
+                <div class="task-type-opt active" id="type-api" onclick="switchTaskForm('api')"><i class="fab fa-telegram-plane"></i> API system (Telegram)</div>
+                <div class="task-type-opt" id="type-none-api" onclick="switchTaskForm('none-api')"><i class="fas fa-globe"></i> None-API (Social/Mini App)</div>
+            </div>
+
+            <form id="createAdminTaskForm">
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="admin-t-title" placeholder="e.g. Join our Channel / Watch YouTube Video" required>
+                </div>
+                <div class="form-group">
+                    <label>Target URL / Link</label>
+                    <input type="url" id="admin-t-url" placeholder="https://t.me/... or https://youtube.com/..." required>
+                </div>
+
+                <!-- API System Fields (Telegram Only) -->
+                <div id="api-system-fields">
+                    <div class="form-group">
+                        <label>Task Type (API Category)</label>
+                        <select id="admin-t-category">
+                            <option value="telegram_channel">Telegram Channel</option>
+                            <option value="telegram_group">Telegram Group</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Telegram Channel/Group Username (required for verification)</label>
+                        <input type="text" id="admin-t-channelid" placeholder="e.g. @mychannelname">
+                    </div>
+                </div>
+
+                <!-- None-API Fields (Social / Twitter / YouTube / WebApp) -->
+                <div id="none-api-fields" style="display: none;">
+                    <div class="form-group">
+                        <label>Platform (None-API Category)</label>
+                        <select id="admin-t-noneapi-category">
+                            <option value="social">Social Media (YT / FB / Twitter)</option>
+                            <option value="telegram_bot">Telegram Mini App / Bot</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>💎 Reward Diamonds</label>
+                    <input type="number" id="admin-t-reward" value="2" min="0.1" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>Max Completions limit (0 = Unlimited)</label>
+                    <input type="number" id="admin-t-limit" value="1000" min="0" required>
+                </div>
+
+                <button type="submit" class="submit-btn" style="background:linear-gradient(135deg, var(--primary), var(--accent))">🚀 Publish Task Instantly</button>
+                <p id="admin-t-msg" style="text-align:center; margin-top:14px; font-size:0.88rem; font-weight:700;"></p>
+            </form>
         </div>
     </div>
 
@@ -355,21 +422,35 @@ const auth = getAuth(app);
 const db   = getFirestore(app);
 const API  = 'https://coinly-task.vercel.app';
 
+// Dynamic form type tracker
+let currentTaskSystem = 'api'; 
+
+window.switchTaskForm = (system) => {
+    currentTaskSystem = system;
+    document.querySelectorAll('.task-type-opt').forEach(opt => opt.classList.remove('active'));
+    
+    if (system === 'api') {
+        document.getElementById('type-api').classList.add('active');
+        document.getElementById('api-system-fields').style.display = 'block';
+        document.getElementById('none-api-fields').style.display = 'none';
+        document.getElementById('admin-t-channelid').setAttribute('required', 'true');
+    } else {
+        document.getElementById('type-none-api').classList.add('active');
+        document.getElementById('api-system-fields').style.display = 'none';
+        document.getElementById('none-api-fields').style.display = 'block';
+        document.getElementById('admin-t-channelid').removeAttribute('required');
+    }
+};
+
 // ── SECURITY STATE CHECKER ──
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // নিরাপত্তা নিশ্চিত করতে সরাসরি ডাটাবেসে রিকোয়েস্ট পাঠিয়ে চেক করা হচ্ছে।
-        // যদি সিকিউরিটি রুলস অনুযায়ী ইউজারের UID অথোরাইজড না হয়, তবে ফায়ারস্টোর এরর দেবে।
         try {
-            // Firestore রুলস চেক করার জন্য একটি রিকোয়েস্ট পাঠানো হচ্ছে
             await getDoc(doc(db, 'config', 'withdrawConfig'));
-            
-            // ভেরিফিকেশন সফল হলে প্যানেল দৃশ্যমান হবে
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('admin-content').style.display = 'block';
             loadDashboard();
         } catch (e) {
-            // রুলস অনুযায়ী পারমিশন না থাকলে লগআউট করে দেওয়া হবে
             signOut(auth);
             document.getElementById('login-overlay').style.display = 'flex';
             document.getElementById('admin-content').style.display = 'none';
@@ -410,12 +491,74 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         if (t === 'withdrawals')    loadWithdrawals('pending');
         if (t === 'deposits')       loadDeposits('pending');
         if (t === 'tasks-approval')  loadPendingTasks(false);
+        if (t === 'add-task')       { document.getElementById('admin-t-msg').textContent = ''; switchTaskForm('api'); }
         if (t === 'users')          loadUsers();
         if (t === 'promo-codes')    loadPromoCodes();
         if (t === 'dashboard')      loadDashboard();
         if (t === 'settings')       loadLiveConfig();
         if (t === 'broadcast')      { document.getElementById('bc-msg').textContent = ''; loadBroadcastHistory(); }
     });
+});
+
+// ── CREATE ADMIN TASK SUBMIT ──
+document.getElementById('createAdminTaskForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('admin-t-msg');
+    const btn = e.target.querySelector('button[type=submit]');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loader-spin" style="width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s infinite linear;margin:0 auto;"></div>';
+    msg.textContent = '';
+
+    const title = document.getElementById('admin-t-title').value.trim();
+    const url = document.getElementById('admin-t-url').value.trim();
+    const reward = parseFloat(document.getElementById('admin-t-reward').value) || 2;
+    const limitVal = parseInt(document.getElementById('admin-t-limit').value) || 0;
+
+    let category = 'social';
+    let channelId = '';
+
+    if (currentTaskSystem === 'api') {
+        category = document.getElementById('admin-t-category').value;
+        channelId = document.getElementById('admin-t-channelid').value.trim();
+        if (!channelId) {
+            msg.style.color = 'var(--danger-color)';
+            msg.textContent = '❌ Channel/Group Username is required for API tasks.';
+            btn.disabled = false;
+            btn.textContent = '🚀 Publish Task Instantly';
+            return;
+        }
+    } else {
+        category = document.getElementById('admin-t-noneapi-category').value;
+    }
+
+    try {
+        await addDoc(collection(db, 'tasks'), {
+            title,
+            url,
+            category,
+            channelId,
+            rewardDiamond: reward,
+            rewardPoints: reward, 
+            maxCompletions: limitVal,
+            completionCount: 0,
+            isApproved: true,
+            paymentStatus: 'approved',
+            createdBy: 'admin',
+            createdAt: serverTimestamp()
+        });
+
+        msg.style.color = 'var(--success-color)';
+        msg.textContent = '✅ Task created and published live successfully!';
+        e.target.reset();
+        document.getElementById('admin-t-limit').value = "1000";
+        document.getElementById('admin-t-reward').value = "2";
+    } catch(err) {
+        msg.style.color = 'var(--danger-color)';
+        msg.textContent = '❌ DB Error: ' + err.message;
+    }
+    btn.disabled = false;
+    btn.textContent = '🚀 Publish Task Instantly';
 });
 
 // ── DASHBOARD OVERVIEW ──
@@ -436,7 +579,7 @@ async function loadDashboard() {
         document.getElementById('nav-pending-count').textContent = pCount;
         document.getElementById('nav-pending-count').style.display = pCount > 0 ? 'inline' : 'none';
 
-        // UTC+6 (Bangladesh Standard Time) Today Calculations
+        // UTC+6 BST Today Calculations
         const nowUTC = new Date();
         const bstOffset = 6 * 60 * 60 * 1000;
         const nowBST = new Date(nowUTC.getTime() + bstOffset);
@@ -611,7 +754,7 @@ async function loadPendingTasks(approved = false) {
                 <div class="card-stats">
                     <div class="stat-row"><span>Category:</span><span class="stat-val" style="color:var(--accent);">${t.category?.toUpperCase() || 'SOCIAL'}</span></div>
                     <div class="stat-row"><span>Completions Needed:</span><span class="stat-val">${t.maxCompletions || 0}</span></div>
-                    <div class="stat-row"><span>TON Paid:</span><span class="stat-val" style="color:var(--warning-color);">${t.tonCost || 0} TON</span></div>
+                    <div class="stat-row"><span>Reward Diamonds:</span><span class="stat-val" style="color:var(--diamond);">${t.rewardDiamond || 0} 💎</span></div>
                     <div class="stat-row"><span>Link / URL:</span><span class="stat-val" style="font-size:0.8em; color:var(--accent); word-break:break-all;">${t.url || ''}</span></div>
                     ${t.channelId ? `<div class="stat-row"><span>Channel Username:</span><span class="stat-val">${t.channelId}</span></div>` : ''}
                 </div>
@@ -1026,30 +1169,32 @@ window.editDiamond = async (uid) => {
     }
 };
 
-// ── Securing Withdraw actions using your Coinly Task API base ──
+// ── Withdrawal Approvals/Rejections (Atomic Transaction Level - NO API required) ──
 window.actionWd = async (id, type, uid, amt) => {
-    if (!confirm(`Confirm ${type === 'approve' ? 'Approving' : 'Rejecting'} withdraw request?`)) return;
+    if (!confirm(`Confirm ${type === 'approve' ? '✅ Approve' : '❌ Reject & Refund'}?`)) return;
+    const btns = document.querySelectorAll(`[data-wd-id="${id}"]`);
+    btns.forEach(b => { b.disabled = true; b.textContent = '⏳...'; });
     try {
-        const idToken = await auth.currentUser.getIdToken(true);
-        const res = await fetch(`${API}/api/withdraw`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                withdrawalId: id,
-                action: type,
-                adminToken: idToken
-            })
+        await runTransaction(db, async (transaction) => {
+            const wRef = doc(db, 'withdrawals', id);
+            const uRef = doc(db, 'users', uid);
+            
+            const wSnap = await transaction.get(wRef);
+            if (!wSnap.exists()) throw new Error("Withdrawal record not found.");
+            if (wSnap.data().status !== 'pending') throw new Error("Already updated/processed.");
+
+            transaction.update(wRef, { status: type === 'approve' ? 'approved' : 'rejected', updatedAt: serverTimestamp() });
+            
+            if (type === 'reject') {
+                transaction.update(uRef, { diamondBalance: increment(amt) });
+            }
         });
-        const data = await res.json();
-        if (data.ok) {
-            showAdminToast(type === 'approve' ? '✅ Approved!' : '❌ Rejected & Refunded.');
-            loadWithdrawals('pending');
-            loadDashboard();
-        } else {
-            alert('Error: ' + (data.error || 'Request failed'));
-        }
+        showAdminToast(type === 'approve' ? '✅ Withdrawal approved!' : '❌ Withdrawal rejected and diamonds refunded.');
+        loadWithdrawals('pending');
+        loadDashboard();
     } catch(e) {
-        alert('API Connection Error: ' + e.message);
+        alert('Error: ' + e.message);
+        btns.forEach(b => { b.disabled = false; b.textContent = type === 'approve' ? '✅ Approve' : '❌ Refund & Reject'; });
     }
 };
 
