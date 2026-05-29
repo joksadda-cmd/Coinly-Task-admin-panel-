@@ -355,15 +355,26 @@ const auth = getAuth(app);
 const db   = getFirestore(app);
 const API  = 'https://coinly-task.vercel.app';
 
-// ── AUTH ──
-// Replace this with your secure admin account UID on your Firestore project if needed
-const ADMIN_UIDs = ['6Mmtx15v09fxM22R8Sg2x9vYjtG3', 'vP3CnhTcaTHzzKDM4BiCyauYlaty']; 
-
-onAuthStateChanged(auth, (user) => {
+// ── SECURITY STATE CHECKER ──
+onAuthStateChanged(auth, async (user) => {
     if (user) {
-        document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('admin-content').style.display = 'block';
-        loadDashboard();
+        // নিরাপত্তা নিশ্চিত করতে সরাসরি ডাটাবেসে রিকোয়েস্ট পাঠিয়ে চেক করা হচ্ছে।
+        // যদি সিকিউরিটি রুলস অনুযায়ী ইউজারের UID অথোরাইজড না হয়, তবে ফায়ারস্টোর এরর দেবে।
+        try {
+            // Firestore রুলস চেক করার জন্য একটি রিকোয়েস্ট পাঠানো হচ্ছে
+            await getDoc(doc(db, 'config', 'withdrawConfig'));
+            
+            // ভেরিফিকেশন সফল হলে প্যানেল দৃশ্যমান হবে
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('admin-content').style.display = 'block';
+            loadDashboard();
+        } catch (e) {
+            // রুলস অনুযায়ী পারমিশন না থাকলে লগআউট করে দেওয়া হবে
+            signOut(auth);
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('admin-content').style.display = 'none';
+            document.getElementById('loginMsg').textContent = '❌ Access Denied: Your account does not have permission to read/write this database.';
+        }
     } else {
         document.getElementById('login-overlay').style.display = 'flex';
         document.getElementById('admin-content').style.display = 'none';
@@ -374,14 +385,19 @@ document.getElementById('loginForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const msg = document.getElementById('loginMsg');
     msg.textContent = 'Signing in...';
-    signInWithEmailAndPassword(
-        auth,
-        document.getElementById('adminEmail').value,
-        document.getElementById('adminPass').value
-    ).catch(err => {
-        msg.textContent = '❌ ' + err.message;
-    });
+    
+    const emailVal = document.getElementById('adminEmail').value.trim();
+    const passVal = document.getElementById('adminPass').value;
+
+    signInWithEmailAndPassword(auth, emailVal, passVal)
+        .catch(err => {
+            msg.textContent = '❌ Error: ' + err.message;
+            if (emailVal.includes('gamil.com')) {
+                msg.textContent += ' (Did you mean @gmail.com?)';
+            }
+        });
 });
+
 document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
 
 // ── NAVIGATION CONTROLLER ──
@@ -1105,7 +1121,7 @@ function showAdminToast(msg) {
     if (!t) {
         t = document.createElement('div');
         t.id = 'nt-admin-toast';
-        t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1e293b;border:1.5px solid var(--primary);color:white;padding:13px 26px;border-radius:14px;font-size:0.88em;z-index:9999;transition:opacity 0.4s;max-width:92vw;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.5);';
+        t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid var(--primary);color:white;padding:13px 26px;border-radius:14px;font-size:0.88em;z-index:9999;transition:opacity 0.4s;max-width:92vw;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.5);';
         document.body.appendChild(t);
     }
     t.textContent = msg;
