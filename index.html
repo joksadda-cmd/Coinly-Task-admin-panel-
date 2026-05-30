@@ -443,19 +443,22 @@ window.switchTaskForm = (system) => {
 };
 
 // ── SECURITY STATE CHECKER ──
+// Admin email whitelist — add your email here
+const ADMIN_EMAILS = ['rashuxansi@gmail.com'];
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        try {
-            await getDoc(doc(db, 'config', 'withdrawConfig'));
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('admin-content').style.display = 'block';
-            loadDashboard();
-        } catch (e) {
+        if (!ADMIN_EMAILS.includes(user.email)) {
             signOut(auth);
             document.getElementById('login-overlay').style.display = 'flex';
             document.getElementById('admin-content').style.display = 'none';
-            document.getElementById('loginMsg').textContent = '❌ Access Denied: Your account does not have permission to read/write this database.';
+            document.getElementById('loginMsg').textContent = '❌ Access Denied: Not an admin account.';
+            return;
         }
+        // Verified admin — show panel
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('admin-content').style.display = 'block';
+        loadDashboard();
     } else {
         document.getElementById('login-overlay').style.display = 'flex';
         document.getElementById('admin-content').style.display = 'none';
