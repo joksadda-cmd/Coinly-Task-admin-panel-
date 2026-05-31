@@ -151,6 +151,7 @@
         <button class="nav-btn" data-target="withdrawals"><i class="fas fa-wallet"></i> Withdrawals <span id="nav-pending-count" style="background:var(--danger-color);color:white;padding:1px 6px;border-radius:10px;font-size:0.75em;display:none;margin-left:4px;">0</span></button>
         <button class="nav-btn" data-target="deposits" style="border-color:var(--warning-color); color:var(--warning-color);"><i class="fas fa-coins"></i> Deposit Requests</button>
         <button class="nav-btn" data-target="tasks-approval" style="border-color:var(--success-color); color:var(--success-color);"><i class="fas fa-clipboard-check"></i> Tasks Approval</button>
+        <button class="nav-btn" data-target="all-tasks" style="border-color:#f59e0b; color:#f59e0b;"><i class="fas fa-list"></i> All Tasks</button>
         <button class="nav-btn" data-target="promo-codes" style="border-color:#c084fc;color:#c084fc;"><i class="fas fa-gift"></i> Promo Codes</button>
         <button class="nav-btn" data-target="settings" style="border-color:#60a5fa;color:#60a5fa;"><i class="fas fa-gear"></i> Settings</button>
         <button class="nav-btn" data-target="broadcast" style="border-color:var(--warning-color);color:var(--warning-color);"><i class="fas fa-bullhorn"></i> Broadcast</button>
@@ -267,6 +268,19 @@
         <div id="tasks-list" class="grid-list"></div>
     </div>
 
+    <!-- ══ ALL TASKS MANAGE ══ -->
+    <div id="all-tasks" class="admin-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <h2>📋 All Tasks</h2>
+            <div style="display:flex; gap:8px;">
+                <button onclick="loadAllTasks('all')" class="btn btn-gold" style="flex:0; padding:7px 14px;">All</button>
+                <button onclick="loadAllTasks('pending')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#f59e0b;">Pending</button>
+                <button onclick="loadAllTasks('approved')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#10b981;">Live</button>
+            </div>
+        </div>
+        <div id="all-tasks-list" class="grid-list"></div>
+    </div>
+
     <!-- ══ USERS ══ -->
     <div id="users" class="admin-section">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
@@ -290,6 +304,7 @@
             <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px; flex-wrap:wrap;">
                 <select id="rewardType" style="background:#111827; color:white; border:1px solid var(--border-color); padding:8px; border-radius:8px;">
                     <option value="diamond">Diamond 💎</option>
+                    <option value="ton">TON 💰</option>
                 </select>
                 <input type="number" id="spinPoint" value="50" placeholder="Amount" style="width:100px; padding:8px; background:#111827; color:white; border:1px solid var(--border-color); border-radius:8px;">
                 <input type="number" id="spinMax" value="100" placeholder="Max Users" style="width:100px; padding:8px; background:#111827; color:white; border:1px solid var(--border-color); border-radius:8px;">
@@ -494,6 +509,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         if (t === 'withdrawals')    loadWithdrawals('pending');
         if (t === 'deposits')       loadDeposits('pending');
         if (t === 'tasks-approval')  loadPendingTasks(false);
+        if (t === 'all-tasks')       loadAllTasks('all');
         if (t === 'add-task')       { document.getElementById('admin-t-msg').textContent = ''; switchTaskForm('api'); }
         if (t === 'users')          loadUsers();
         if (t === 'promo-codes')    loadPromoCodes();
@@ -805,12 +821,14 @@ async function loadUsers(searchVal = '') {
                     ${isBan ? '<span style="background:var(--danger-color);color:white;padding:2px 7px;font-size:0.75em;border-radius:4px;">BANNED</span>' : ''}
                 </div>
                 <div class="card-stats">
-                    <div class="stat-row"><span>💎 Diamond Balance:</span><span class="stat-val" style="color:var(--diamond);">${Math.floor(u.diamondBalance||0).toLocaleString()} 💎</span></div>
-                    <div class="stat-row"><span>Invited Friends:</span><span class="stat-val">${u.totalInvites||0}</span></div>
-                    <div class="stat-row"><span>Valid Invites:</span><span class="stat-val">${u.validReferrals||0}</span></div>
+                    <div class="stat-row"><span>💎 Diamond:</span><span class="stat-val" style="color:var(--diamond);">${Math.floor(u.diamondBalance||0).toLocaleString()} 💎</span></div>
+                    <div class="stat-row"><span>💰 TON Balance:</span><span class="stat-val" style="color:#60a5fa;">${(u.tonBalance||0).toFixed(4)} TON</span></div>
+                    <div class="stat-row"><span>✅ Tasks Done:</span><span class="stat-val">${(u.completedTasks||[]).length}</span></div>
+                    <div class="stat-row"><span>👥 Invites:</span><span class="stat-val">${u.totalInvites||0} (Valid: ${u.validReferrals||0})</span></div>
                 </div>
-                <div class="card-actions" style="margin-top:8px;">
-                    <button class="btn btn-diamond" onclick="editDiamond('${d.id}')">💎 Edit Diamond Balance</button>
+                <div class="card-actions" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="btn btn-diamond" onclick="editBalance('${d.id}','diamond')">💎 Send Diamond</button>
+                    <button class="btn" style="background:#1d4ed8;color:#fff;" onclick="editBalance('${d.id}','ton')">💰 Send TON</button>
                 </div>
                 <div class="card-actions">
                     <button class="btn" style="background:${isBan?'#00E5A0':'var(--danger-color)'}; color:${isBan?'black':'white'};" onclick="toggleBan('${d.id}',${isBan})">${isBan?'✅ Unban User':'🚫 Ban User'}</button>
@@ -839,7 +857,7 @@ async function loadPromoCodes() {
                     ${isExpired ? '<span style="color:var(--danger-color); font-size:0.8em;">EXPIRED</span>' : '<span style="color:var(--success-color); font-size:0.8em;">ACTIVE</span>'}
                 </div>
                 <div class="card-stats">
-                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--primary);">${p.rewardAmount} 💎 Diamonds</span></div>
+                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--primary);">${p.rewardAmount} ${p.rewardType==='ton'?'💰 TON':'💎 Diamond'}</span></div>
                     <div class="stat-row"><span>Claims:</span><span class="stat-val">${p.currentUses}/${p.maxUses}</span></div>
                     <div class="stat-row"><span>Expires:</span><span class="stat-val" style="font-size:0.8em; color:#aaa;">${p.expiresAt ? p.expiresAt.toDate().toLocaleString() : 'N/A'}</span></div>
                 </div>
@@ -853,10 +871,11 @@ document.getElementById('spinBtn').addEventListener('click', async () => {
     const amount = parseFloat(document.getElementById('spinPoint').value);
     const maxUses = parseInt(document.getElementById('spinMax').value);
     if (!amount || !maxUses) { alert('Fill in all fields.'); return; }
+    const rewardType = document.getElementById('rewardType').value;
     const code = 'CL' + Math.random().toString(36).substring(2,8).toUpperCase();
     const expiresAt = Timestamp.fromDate(new Date(Date.now() + 24*60*60*1000));
     try {
-        await setDoc(doc(db,'promo_codes',code), { code, rewardAmount: amount, rewardType: 'diamond', maxUses, currentUses: 0, usersClaimed: [], isActive: true, expiresAt, createdAt: serverTimestamp() });
+        await setDoc(doc(db,'promo_codes',code), { code, rewardAmount: amount, rewardType, maxUses, currentUses: 0, usersClaimed: [], isActive: true, expiresAt, createdAt: serverTimestamp() });
         const box = document.getElementById('generatedCode');
         box.innerHTML = `<span style="font-size:1.3em; font-weight:800; color:#c084fc; letter-spacing:2px;">${code}</span>
             <button class="btn-copy" onclick="copyTxt('${code}')">COPY</button>
@@ -1161,15 +1180,109 @@ window.toggleBan  = async (uid, cur) => {
     loadUsers(document.getElementById('userSearch').value);
 };
 
-window.editDiamond = async (uid) => {
-    const a = prompt('Change Diamond Balance. Use "+" to add, or "-" to subtract. E.g. 50 or -25:');
-    if (a && !isNaN(a)) { 
-        await updateDoc(doc(db,'users',uid), { 
-            diamondBalance: increment(parseFloat(a))
-        }); 
-        alert('Diamond updated successfully!'); 
-        loadUsers(); 
-    }
+// ── ALL TASKS MANAGEMENT ──
+window.loadAllTasks = async (filter='all') => {
+    const list = document.getElementById('all-tasks-list');
+    list.innerHTML = '<div class="loader"></div>';
+    try {
+        let q = collection(db, 'tasks');
+        let snap;
+        if(filter === 'approved'){
+            snap = await getDocs(query(q, where('isApproved','==',true), limit(50)));
+        } else if(filter === 'pending'){
+            snap = await getDocs(query(q, where('isApproved','==',false), limit(50)));
+        } else {
+            snap = await getDocs(query(q, limit(100)));
+        }
+        list.innerHTML = '';
+        if(snap.empty){ list.innerHTML = '<p style="color:#666;text-align:center;">No tasks found.</p>'; return; }
+        snap.forEach(d => {
+            const t = d.data();
+            const isApproved = t.isApproved || false;
+            const pct = t.maxCompletions > 0 ? Math.min(100, Math.round((t.completionCount||0)/t.maxCompletions*100)) : 0;
+            const div = document.createElement('div'); div.className = 'card-item';
+            div.innerHTML = `
+                <div class="card-header">
+                    <div>
+                        <h3 style="margin:0;font-size:0.95em;color:#fff;">${t.title||'No Title'}</h3>
+                        <span style="font-size:0.72em;color:#aaa;">${t.category||'social'} · Created by: ${t.createdBy||'admin'}</span>
+                    </div>
+                    <span style="background:${isApproved?'#10b981':'#f59e0b'};color:#000;padding:2px 8px;font-size:0.72em;border-radius:6px;font-weight:700;">${isApproved?'LIVE':'PENDING'}</span>
+                </div>
+                <div class="card-stats">
+                    <div class="stat-row"><span>URL:</span><span class="stat-val" style="font-size:0.78em;word-break:break-all;"><a href="${t.url||'#'}" target="_blank" style="color:#60a5fa;">${(t.url||'').substring(0,40)}...</a></span></div>
+                    <div class="stat-row"><span>Progress:</span><span class="stat-val">${t.completionCount||0} / ${t.maxCompletions||0} (${pct}%)</span></div>
+                    <div class="stat-row"><span>Reward:</span><span class="stat-val">${t.rewardDiamond||1} 💎 per completion</span></div>
+                    <div class="stat-row"><span>Cost:</span><span class="stat-val">${t.tonCost||0} TON</span></div>
+                </div>
+                <div style="height:6px;background:#333;border-radius:4px;margin:8px 0;overflow:hidden;">
+                    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#6366f1,#06b6d4);border-radius:4px;"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
+                    <button class="btn" style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;" onclick="editTask('${d.id}')">✏️ Edit</button>
+                    <button class="btn ${isApproved?'':'btn-gold'}" style="font-size:0.8rem;" onclick="toggleTaskApproval('${d.id}',${isApproved})">${isApproved?'⏸ Pause':'✅ Approve'}</button>
+                    <button class="btn btn-reject" style="font-size:0.8rem;" onclick="deleteTask('${d.id}','${t.title||''}')">🗑 Delete</button>
+                </div>`;
+            list.appendChild(div);
+        });
+    } catch(e) { list.innerHTML = `<p style="color:var(--danger-color);">Error: ${e.message}</p>`; }
+};
+
+window.editTask = async (taskId) => {
+    const snap = await getDoc(doc(db,'tasks',taskId));
+    if(!snap.exists()) return alert('Task not found');
+    const t = snap.data();
+    const newTitle = prompt('Edit Title:', t.title||'');
+    if(newTitle === null) return;
+    const newReward = prompt('Reward Diamond per completion:', t.rewardDiamond||1);
+    if(newReward === null) return;
+    const newMax = prompt('Max completions:', t.maxCompletions||100);
+    if(newMax === null) return;
+    try {
+        await updateDoc(doc(db,'tasks',taskId), {
+            title: newTitle.trim(),
+            rewardDiamond: parseFloat(newReward)||1,
+            maxCompletions: parseInt(newMax)||100,
+        });
+        showAdminToast('✅ Task updated!');
+        loadAllTasks('all');
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.toggleTaskApproval = async (taskId, currentStatus) => {
+    const action = currentStatus ? 'pause' : 'approve';
+    if(!confirm(`${action === 'approve' ? '✅ Approve' : '⏸ Pause'} this task?`)) return;
+    try {
+        await updateDoc(doc(db,'tasks',taskId), { isApproved: !currentStatus });
+        showAdminToast(action === 'approve' ? '✅ Task approved & live!' : '⏸ Task paused.');
+        loadAllTasks('all');
+        loadDashboard();
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.deleteTask = async (taskId, title) => {
+    if(!confirm(`Delete task: "${title}"?\nThis cannot be undone.`)) return;
+    try {
+        await deleteDoc(doc(db,'tasks',taskId));
+        showAdminToast('🗑 Task deleted.');
+        loadAllTasks('all');
+        loadDashboard();
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.editDiamond = async (uid) => { editBalance(uid, 'diamond'); };
+
+window.editBalance = async (uid, type) => {
+    const label = type === 'ton' ? 'TON' : 'Diamond 💎';
+    const field = type === 'ton' ? 'tonBalance' : 'diamondBalance';
+    const a = prompt(`Send ${label} to user.\nUse "+" to add or "-" to subtract.\nE.g. 0.5 or -10:`);
+    if (!a || isNaN(a)) return;
+    const val = parseFloat(a);
+    try {
+        await updateDoc(doc(db,'users',uid), { [field]: increment(val) });
+        showAdminToast(`✅ ${val > 0 ? '+' : ''}${val} ${label} sent to user!`);
+        loadUsers();
+    } catch(e) { alert('Error: ' + e.message); }
 };
 
 // ── Withdrawal Approvals/Rejections (Atomic Transaction Level - NO API required) ──
@@ -1218,7 +1331,9 @@ window.approveDeposit = async (depId, uid, diamondAmount) => {
 
             transaction.update(dRef, { status: 'approved', updatedAt: serverTimestamp() });
             if (uSnap.exists()) {
-                transaction.update(uRef, { diamondBalance: increment(diamondAmount) });
+                // Deposit credits TON balance (not Diamond)
+                const tonAmt = dSnap.data().tonAmount || 0;
+                transaction.update(uRef, { tonBalance: increment(tonAmt) });
             }
         });
 
