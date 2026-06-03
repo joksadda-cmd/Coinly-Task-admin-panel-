@@ -373,7 +373,7 @@
             <div class="form-group">
                 <label>Message <span style="color:#666; font-size:0.8em;">(HTML: &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, 💎 emoji)</span></label>
                 <textarea id="bc-message" rows="5" placeholder="🎉 Big update! New high-paying tasks available now..." style="width:100%; padding:12px; background:var(--bg-dark); border:1.5px solid var(--border-color); color:white; border-radius:8px; box-sizing:border-box; font-family:inherit; resize:vertical;"></textarea>
-                <div style="text-align:right; font-size:0.78em; color:#666; margin-top:4px;"><span id="bc-charcount">0</span>/1000</div>
+                <div style="text-align:right; font-size:0.78em; color:#666; margin-top:4px;"><span id="bc-charcount">0</span>/4096</div>
             </div>
 
             <div class="form-group">
@@ -383,6 +383,16 @@
                     <option value="active">Active Users (min 1 ad watched)</option>
                     <option value="no_withdraw">Users with no withdrawal yet</option>
                 </select>
+            </div>
+
+            <!-- Link Buttons (optional) -->
+            <div class="form-group">
+                <label style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>🔗 Link Buttons <span style="color:#666;font-size:0.78em;">(optional, max 4)</span></span>
+                    <button onclick="addLinkBtn()" style="background:rgba(245,158,11,0.15);border:1px solid var(--warning-color);color:var(--warning-color);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78em;">+ Add Button</button>
+                </label>
+                <div id="bc-link-rows" style="display:flex;flex-direction:column;gap:7px;margin-top:8px;"></div>
+                <p style="font-size:0.72em;color:#666;margin-top:6px;">💡 Button Name = text user sees. URL = link it opens. Leave empty to send without buttons.</p>
             </div>
 
             <button id="bc-sendBtn" onclick="sendBroadcast()" style="width:100%; padding:13px; background:var(--warning-color); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.95em;">📤 Send Broadcast</button>
@@ -726,11 +736,28 @@ async function loadDeposits(filter = 'pending') {
             const div = document.createElement('div');
             div.className = 'card-item';
             div.style.borderColor = isApproved ? 'rgba(16,185,129,0.35)' : isPending ? 'rgba(245,158,11,0.35)' : 'rgba(239,68,68,0.35)';
+            // Fetch user warning info for this deposit
+            let warnCount = 0, isDepBanned = false;
+            try {
+                const uSnap2 = await getDoc(doc(db,'users', dep.userId));
+                if (uSnap2.exists()) {
+                    warnCount = uSnap2.data().depositWarnings || 0;
+                    isDepBanned = uSnap2.data().depositBanned === true;
+                }
+            } catch(e){}
+
+            const warnBadge = isDepBanned
+                ? `<span style="background:#ef4444;color:#fff;padding:3px 9px;border-radius:5px;font-weight:800;font-size:0.72em;margin-left:6px;">🚫 DEPOSIT BANNED</span>`
+                : warnCount > 0
+                    ? `<span style="background:#f59e0b;color:#000;padding:3px 9px;border-radius:5px;font-weight:800;font-size:0.72em;margin-left:6px;">⚠️ ${warnCount}/3 WARNINGS</span>`
+                    : '';
+
             div.innerHTML = `
                 <div class="card-header">
-                    <div>
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
                         <span class="username">@${dep.username || 'NoName'}</span>
                         <span class="userid">${dep.userId}</span>
+                        ${warnBadge}
                     </div>
                     <span style="background:${statusColor}; color:#000; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">${(dep.status||'pending').toUpperCase()}</span>
                 </div>
@@ -739,12 +766,16 @@ async function loadDeposits(filter = 'pending') {
                     <div class="stat-row"><span>💎 Expected Diamonds:</span><span class="stat-val" style="color:var(--diamond); font-size:1.1rem; font-weight:800;">+${dep.expectedDiamond || 0} 💎</span></div>
                     <div class="stat-row"><span>TON Amount:</span><span class="stat-val" style="color:var(--primary); font-weight:800;">${dep.tonAmount || 0} TON</span></div>
                     <div class="stat-row"><span>🔑 Comment / Memo:</span><span class="stat-val" style="font-family:var(--mono); color:var(--warning-color);">${dep.memo || 'N/A'}</span></div>
+                    ${warnCount > 0 ? `<div class="stat-row"><span>⚠️ Fake Request History:</span><span class="stat-val" style="color:${isDepBanned?'#ef4444':'#f59e0b'};font-weight:800;">${isDepBanned ? '🚫 Permanently Banned' : warnCount + ' warning(s) issued'}</span></div>` : ''}
                 </div>
                 ${isPending ? `
-                <div class="card-actions">
-                    <button class="btn btn-approve" onclick="approveDeposit('${dep.id}','${dep.userId}',${dep.expectedDiamond || 0})">✅ Verify & Credit</button>
-                    <button class="btn btn-reject" onclick="rejectDeposit('${dep.id}')">❌ Decline</button>
-                </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:0;">Deposit Verified</p>`}
+                <div class="card-actions" style="flex-direction:column;gap:8px;">
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-approve" onclick="approveDeposit('${dep.id}','${dep.userId}',${dep.expectedDiamond || 0})">✅ Verify & Credit</button>
+                        <button class="btn btn-reject" onclick="rejectDeposit('${dep.id}','${dep.userId}',${warnCount})">❌ Decline</button>
+                    </div>
+                    ${warnCount >= 1 && !isDepBanned ? `<button class="btn" style="background:#ef4444;color:#fff;width:100%;padding:9px;" onclick="banDeposit('${dep.userId}')">🚫 Permanently Ban Deposits</button>` : ''}
+                </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:0;">Deposit ${dep.status === 'approved' ? 'Verified ✅' : 'Rejected ❌'}</p>`}
             `;
             list.appendChild(div);
         });
@@ -815,23 +846,33 @@ async function loadUsers(searchVal = '') {
             const isBan = u.isBanned || false;
             const div = document.createElement('div');
             div.className = `card-item ${isBan ? 'banned-user' : ''}`;
+            const depWarn = u.depositWarnings || 0;
+            const depBanned = u.depositBanned === true;
             div.innerHTML = `
                 <div class="card-header">
-                    <div><span class="username">@${u.telegramUsername||'NoName'}</span><br><span class="userid">${d.id}</span></div>
-                    ${isBan ? '<span style="background:var(--danger-color);color:white;padding:2px 7px;font-size:0.75em;border-radius:4px;">BANNED</span>' : ''}
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;">
+                        <span class="username">@${u.telegramUsername||'NoName'}</span>
+                        <br><span class="userid">${d.id}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;">
+                        ${isBan ? '<span style="background:var(--danger-color);color:white;padding:2px 8px;font-size:0.72em;border-radius:4px;font-weight:800;">🚫 BANNED</span>' : ''}
+                        ${depBanned ? '<span style="background:#7f1d1d;color:#fca5a5;padding:2px 8px;font-size:0.72em;border-radius:4px;font-weight:800;">💳 DEP BANNED</span>' : depWarn > 0 ? `<span style="background:#78350f;color:#fcd34d;padding:2px 8px;font-size:0.72em;border-radius:4px;font-weight:800;">⚠️ ${depWarn}/3 WARNS</span>` : ''}
+                    </div>
                 </div>
                 <div class="card-stats">
                     <div class="stat-row"><span>💎 Diamond:</span><span class="stat-val" style="color:var(--diamond);">${Math.floor(u.diamondBalance||0).toLocaleString()} 💎</span></div>
                     <div class="stat-row"><span>💰 TON Balance:</span><span class="stat-val" style="color:#60a5fa;">${(u.tonBalance||0).toFixed(4)} TON</span></div>
                     <div class="stat-row"><span>✅ Tasks Done:</span><span class="stat-val">${(u.completedTasks||[]).length}</span></div>
                     <div class="stat-row"><span>👥 Invites:</span><span class="stat-val">${u.totalInvites||0} (Valid: ${u.validReferrals||0})</span></div>
+                    ${depWarn > 0 ? `<div class="stat-row"><span>⚠️ Fake Deposit Warns:</span><span class="stat-val" style="color:${depBanned?'#ef4444':'#f59e0b'};font-weight:800;">${depBanned ? '🚫 Permanently Banned' : depWarn + '/3 warnings'}</span></div>` : ''}
                 </div>
                 <div class="card-actions" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                     <button class="btn btn-diamond" onclick="editBalance('${d.id}','diamond')">💎 Send Diamond</button>
                     <button class="btn" style="background:#1d4ed8;color:#fff;" onclick="editBalance('${d.id}','ton')">💰 Send TON</button>
                 </div>
-                <div class="card-actions">
-                    <button class="btn" style="background:${isBan?'#00E5A0':'var(--danger-color)'}; color:${isBan?'black':'white'};" onclick="toggleBan('${d.id}',${isBan})">${isBan?'✅ Unban User':'🚫 Ban User'}</button>
+                <div class="card-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="btn" style="background:${isBan?'#00E5A0':'var(--danger-color)'}; color:${isBan?'black':'white'};" onclick="toggleBan('${d.id}',${isBan})">${isBan?'✅ Unban':'🚫 Ban User'}</button>
+                    <button class="btn" style="background:${depBanned?'#059669':'#92400e'};color:#fff;" onclick="toggleDepositBan('${d.id}',${depBanned})">${depBanned?'✅ Unban Deposit':'💳 Ban Deposit'}</button>
                 </div>`;
             list.appendChild(div);
         });
@@ -1010,7 +1051,10 @@ window.loadLiveConfig = async () => {
 
 // ── BROADCAST ──
 document.getElementById('bc-message').addEventListener('input', () => {
-    document.getElementById('bc-charcount').textContent = document.getElementById('bc-message').value.length;
+    const len = document.getElementById('bc-message').value.length;
+    const el = document.getElementById('bc-charcount');
+    el.textContent = len;
+    el.style.color = len > 4000 ? 'var(--danger-color)' : len > 3500 ? 'var(--warning-color)' : '#666';
 });
 
 function getGlobalBotToken() {
@@ -1019,6 +1063,25 @@ function getGlobalBotToken() {
 function saveGlobalBotToken(token) {
     if (token) localStorage.setItem('cl_bot_token', token);
 }
+
+// Add/remove link button rows
+window.addLinkBtn = () => {
+    const rows = document.getElementById('bc-link-rows');
+    if (rows.children.length >= 4) {
+        alert('Maximum 4 link buttons allowed.'); return;
+    }
+    const idx = rows.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;';
+    row.innerHTML = `
+        <input class="bc-btn-name" type="text" placeholder="Button Name (e.g. 🚀 Open App)"
+               style="padding:8px 10px;background:var(--bg-dark);border:1px solid var(--border-color);color:white;border-radius:7px;font-size:0.82em;">
+        <input class="bc-btn-url" type="url" placeholder="https://t.me/..."
+               style="padding:8px 10px;background:var(--bg-dark);border:1px solid var(--border-color);color:white;border-radius:7px;font-size:0.82em;">
+        <button onclick="this.parentNode.remove()"
+                style="background:#ef4444;color:#fff;border:none;border-radius:7px;padding:7px 10px;cursor:pointer;font-size:0.88em;">✕</button>`;
+    rows.appendChild(row);
+};
 
 window.sendBroadcast = async () => {
     const inputToken = document.getElementById('bc-secret').value.trim();
@@ -1031,7 +1094,25 @@ window.sendBroadcast = async () => {
 
     if (!botToken) { statusEl.style.color='var(--danger-color)'; statusEl.textContent='❌ Please insert Bot Token.'; return; }
     if (!message || message.length < 5) { statusEl.style.color='var(--danger-color)'; statusEl.textContent='❌ Message too short.'; return; }
-    if (!confirm('Run broadcast?')) return;
+    if (message.length > 4096) { statusEl.style.color='var(--danger-color)'; statusEl.textContent='❌ Message too long (max 4096 chars).'; return; }
+
+    // Collect link buttons
+    const linkBtns = [];
+    document.querySelectorAll('#bc-link-rows > div').forEach(row => {
+        const name = row.querySelector('.bc-btn-name')?.value.trim();
+        const url  = row.querySelector('.bc-btn-url')?.value.trim();
+        if (name && url) linkBtns.push({ text: name, url });
+    });
+
+    // Build inline_keyboard — 2 buttons per row
+    const keyboard = [];
+    for (let i = 0; i < linkBtns.length; i += 2) {
+        keyboard.push(linkBtns.slice(i, i + 2));
+    }
+    // Always add app launch button at the end
+    keyboard.push([{ text: '🚀 Open Coinly Task', url: 'https://t.me/Coinlytix_bot/TaskEarn' }]);
+
+    if (!confirm(`Send to "${target}" users?\n\n${linkBtns.length} custom button(s) + app launch button will be included.`)) return;
 
     btn.disabled = true; btn.textContent = '⏳ Broadcast in progress...';
     statusEl.textContent = '';
@@ -1044,35 +1125,48 @@ window.sendBroadcast = async () => {
     document.getElementById('bc-progress-pct').textContent  = '0%';
 
     try {
-        let usersSnap;
-        if (target === 'active') {
-            usersSnap = await getDocs(query(collection(db,'users'), where('isBanned','==',false), limit(3000)));
-        } else if (target === 'no_withdraw') {
-            usersSnap = await getDocs(query(collection(db,'users'), where('withdrawalCount','==',0), limit(3000)));
-        } else {
-            usersSnap = await getDocs(query(collection(db,'users'), limit(5000)));
-        }
+        // Paginated Firestore read — gets ALL users in batches of 1000
+        let userIds = [];
+        let lastDoc = null;
+        const PAGE  = 1000;
 
-        const userIds = [];
-        usersSnap.forEach(d => {
-            const u = d.data();
-            if (u.isBanned) return;
-            userIds.push(d.id);
-        });
+        while (true) {
+            let q;
+            if (target === 'active') {
+                q = lastDoc
+                    ? query(collection(db,'users'), where('isBanned','==',false), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), where('isBanned','==',false), limit(PAGE));
+            } else if (target === 'no_withdraw') {
+                q = lastDoc
+                    ? query(collection(db,'users'), where('validReferrals','==',0), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), where('validReferrals','==',0), limit(PAGE));
+            } else {
+                q = lastDoc
+                    ? query(collection(db,'users'), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), limit(PAGE));
+            }
+            const snap = await getDocs(q);
+            if (snap.empty) break;
+            snap.forEach(d => {
+                if (!d.data().isBanned) userIds.push(d.id);
+            });
+            lastDoc = snap.docs[snap.docs.length - 1];
+            if (snap.size < PAGE) break; // last page
+        }
 
         const total = userIds.length;
         document.getElementById('bc-total-count').textContent = total;
 
         if (total === 0) {
             statusEl.style.color = 'var(--warning-color)';
-            statusEl.textContent = 'No recipients targeted.';
+            statusEl.textContent = 'No recipients found.';
             btn.disabled = false; btn.textContent = '📤 Send Broadcast';
             return;
         }
 
         let sent = 0, failed = 0;
-        const BATCH = 50;  
-        const DELAY = 200; 
+        const BATCH = 25;   // 25 concurrent — safe for Telegram rate limit
+        const DELAY = 1000; // 1 second between batches = ~25 msg/s, well under 30/s limit
         const tgUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
         for (let i = 0; i < userIds.length; i += BATCH) {
@@ -1084,18 +1178,31 @@ window.sendBroadcast = async () => {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            chat_id:    uid,
-                            text:       message,
-                            parse_mode: 'HTML',
-                            reply_markup: {
-                                inline_keyboard: [[
-                                    { text: '🚀 Launch Coinly Task', url: 'http://t.me/Coinlytix_bot/TaskEarn' }
-                                ]]
-                            }
+                            chat_id:      uid,
+                            text:         message,
+                            parse_mode:   'HTML',
+                            reply_markup: { inline_keyboard: keyboard }
                         })
                     });
                     const data = await resp.json();
-                    if (data.ok) sent++; else failed++;
+                    if (data.ok) sent++;
+                    else {
+                        failed++;
+                        // Handle rate limit — wait and retry once
+                        if (data.error_code === 429) {
+                            const wait = (data.parameters?.retry_after || 5) * 1000;
+                            await new Promise(r => setTimeout(r, wait));
+                            try {
+                                const r2 = await fetch(tgUrl, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ chat_id: uid, text: message, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } })
+                                });
+                                const d2 = await r2.json();
+                                if (d2.ok) { sent++; failed--; }
+                            } catch(e2) {}
+                        }
+                    }
                 } catch(e) { failed++; }
             }));
 
@@ -1114,27 +1221,25 @@ window.sendBroadcast = async () => {
         document.getElementById('bc-progress-fill').style.width = '100%';
         document.getElementById('bc-progress-pct').textContent  = '100%';
         statusEl.style.color = 'var(--success-color)';
-        statusEl.textContent = `✅ Complete! Sent: ${sent} | Failed: ${failed}`;
+        statusEl.textContent = `✅ Complete! Sent: ${sent} | Failed: ${failed} | Total: ${total}`;
 
-        // Store history Log
         try {
             await addDoc(collection(db, 'broadcasts'), {
-                message,
-                target,
-                totalUsers: total,
-                sentCount:  sent,
-                failCount:  failed,
-                sentAt:     serverTimestamp(),
-                sentBy:     auth.currentUser?.email || 'admin'
+                message: message.substring(0, 500),
+                target, totalUsers: total, sentCount: sent, failCount: failed,
+                linkButtons: linkBtns,
+                sentAt: serverTimestamp(),
+                sentBy: auth.currentUser?.email || 'admin'
             });
         } catch(e) { console.error('History save err:', e); }
 
         document.getElementById('bc-message').value = '';
         document.getElementById('bc-charcount').textContent = '0';
+        document.getElementById('bc-link-rows').innerHTML = '';
 
     } catch(err) {
         statusEl.style.color = 'var(--danger-color)';
-        statusEl.textContent = '❌ Error sending broadcast: ' + err.message;
+        statusEl.textContent = '❌ Error: ' + err.message;
     }
     btn.disabled = false; btn.textContent = '📤 Send Broadcast';
 };
@@ -1173,6 +1278,21 @@ window.loadBroadcastHistory = async () => {
 // ── ADMIN INTERACTIVE HELPERS ──
 window.copyTxt    = (t) => navigator.clipboard.writeText(t).then(() => alert('Copied to clipboard!'));
 window.searchUser = () => loadUsers(document.getElementById('userSearch').value);
+
+window.toggleDepositBan = async (uid, cur) => {
+    const msg = cur
+        ? 'Restore deposit access for this user?'
+        : '💳 Permanently ban this user from making deposits?';
+    if (!confirm(msg)) return;
+    try {
+        await updateDoc(doc(db,'users', uid), {
+            depositBanned: !cur,
+            ...(cur ? { depositWarnings: 0 } : {}),
+        });
+        showAdminToast(cur ? '✅ Deposit access restored.' : '💳 Deposit permanently banned.');
+        loadUsers();
+    } catch(e) { alert('Error: ' + e.message); }
+};
 
 window.toggleBan  = async (uid, cur) => {
     if (!confirm(cur ? 'Unban this user?' : 'Ban this user?')) return;
@@ -1352,16 +1472,76 @@ window.approveDeposit = async (depId, uid, diamondAmount) => {
     }
 };
 
-window.rejectDeposit = async (depId) => {
-    if (!confirm('Reject / Decline this deposit request?')) return;
+window.rejectDeposit = async (depId, userId, currentWarnings) => {
+    const warns = currentWarnings || 0;
+    const nextWarn = warns + 1;
+
+    let confirmMsg = '';
+    if (nextWarn === 1) {
+        confirmMsg = '⚠️ Issue WARNING 1/3 to this user?\n\nUser will receive a 1st warning notice. Deposit section will show a warning.';
+    } else if (nextWarn === 2) {
+        confirmMsg = '⚠️ Issue FINAL WARNING (2/3) to this user?\n\nUser will be told next violation = permanent deposit ban.';
+    } else {
+        confirmMsg = '🚫 This is the 3rd violation!\n\nUser deposit section will be PERMANENTLY BANNED. Continue?';
+    }
+    if (!confirm(confirmMsg)) return;
+
     try {
-        await updateDoc(doc(db, 'deposits', depId), {
+        const uRef = doc(db, 'users', userId);
+        const uSnap = await getDoc(uRef);
+        if (!uSnap.exists()) throw new Error('User not found');
+
+        const newWarnCount = (uSnap.data().depositWarnings || 0) + 1;
+        const permBan = newWarnCount >= 3;
+
+        // Update deposit status + user warning fields
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'deposits', depId), {
             status: 'rejected',
             updatedAt: serverTimestamp()
         });
-        showAdminToast('❌ Deposit request rejected.');
+        batch.update(uRef, {
+            depositWarnings: increment(1),
+            ...(permBan ? { depositBanned: true } : {}),
+            lastWarningAt: serverTimestamp(),
+        });
+        await batch.commit();
+
+        // Notify via API (Telegram message to user)
+        try {
+            await fetch(`${API}/api/approveDeposit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    depositId: depId,
+                    action: 'reject',
+                    warningCount: newWarnCount,
+                    permBan,
+                    adminNote: permBan
+                        ? 'Third fake deposit violation. Your deposit section has been permanently disabled.'
+                        : newWarnCount === 2
+                            ? 'Second fake deposit request detected. This is your FINAL WARNING — next violation will permanently disable your deposit section.'
+                            : 'Fake deposit request detected. This is Warning 1 of 3.'
+                })
+            });
+        } catch(e) { console.warn('API notify failed:', e); }
+
+        const msg = permBan
+            ? '🚫 User deposit section permanently banned!'
+            : `⚠️ Warning ${newWarnCount}/3 issued to user.`;
+        showAdminToast(msg);
         loadDeposits('pending');
         loadDashboard();
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+// Manually ban deposits from deposit card
+window.banDeposit = async (userId) => {
+    if (!confirm('🚫 Permanently ban this user from making deposit requests?')) return;
+    try {
+        await updateDoc(doc(db,'users', userId), { depositBanned: true });
+        showAdminToast('🚫 Deposit permanently banned for this user.');
+        loadDeposits('pending');
     } catch(e) { alert('Error: ' + e.message); }
 };
 
