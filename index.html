@@ -722,7 +722,7 @@ async function loadDeposits(filter = 'pending') {
         docs.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         list.innerHTML = '';
-        docs.forEach(dep => {
+        docs.forEach(async dep => {
             const isPending = dep.status === 'pending';
             const isApproved = dep.status === 'approved';
             const statusColor = isApproved ? 'var(--success-color)' : dep.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
