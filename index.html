@@ -429,7 +429,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, startAfter, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey:"AIzaSyBiCyauYlaty5Th0_uPfCnhTcaTHzzKDM4",
@@ -660,9 +660,18 @@ async function loadWithdrawals(filter = 'pending') {
             const statusColor = isApproved ? 'var(--success-color)' : wd.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
 
             const dAmt = wd.diamondAmount || 0;
+            // Use stored tonAmount if available, else calculate from rates
             let convertedStr = '';
-            if (wd.method === 'binance')   convertedStr = `≈ ${(dAmt/1000).toFixed(4)} USDT`;
-            if (wd.method === 'tonkeeper') convertedStr = `≈ ${(dAmt*0.00075).toFixed(4)} TON`;
+            if (wd.method === 'bkash'){
+                const bdt = wd.tonAmount || Math.round(dAmt * 0.12);
+                convertedStr = `<span style="color:#e2136e;font-weight:800;">${bdt.toLocaleString()} BDT</span>`;
+            } else if (wd.method === 'binance'){
+                const usd = wd.tonAmount || (dAmt * 0.001).toFixed(2);
+                convertedStr = `<span style="color:#f0b90b;font-weight:800;">$${usd} USD</span>`;
+            } else {
+                const ton = wd.tonAmount || (dAmt * 0.0005).toFixed(4);
+                convertedStr = `<span style="color:#60a5fa;font-weight:800;">${ton} TON</span>`;
+            }
 
             let dateStr = '-';
             try {
@@ -722,7 +731,7 @@ async function loadDeposits(filter = 'pending') {
         docs.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         list.innerHTML = '';
-        docs.forEach(async dep => {
+        docs.forEach(dep => {
             const isPending = dep.status === 'pending';
             const isApproved = dep.status === 'approved';
             const statusColor = isApproved ? 'var(--success-color)' : dep.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
