@@ -429,7 +429,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, startAfter, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey:"AIzaSyBiCyauYlaty5Th0_uPfCnhTcaTHzzKDM4",
@@ -660,9 +660,18 @@ async function loadWithdrawals(filter = 'pending') {
             const statusColor = isApproved ? 'var(--success-color)' : wd.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
 
             const dAmt = wd.diamondAmount || 0;
+            // Use stored tonAmount if available, else calculate from rates
             let convertedStr = '';
-            if (wd.method === 'binance')   convertedStr = `≈ ${(dAmt/1000).toFixed(4)} USDT`;
-            if (wd.method === 'tonkeeper') convertedStr = `≈ ${(dAmt*0.00075).toFixed(4)} TON`;
+            if (wd.method === 'bkash'){
+                const bdt = wd.tonAmount || Math.round(dAmt * 0.12);
+                convertedStr = `<span style="color:#e2136e;font-weight:800;">${bdt.toLocaleString()} BDT</span>`;
+            } else if (wd.method === 'binance'){
+                const usd = wd.tonAmount || (dAmt * 0.001).toFixed(2);
+                convertedStr = `<span style="color:#f0b90b;font-weight:800;">$${usd} USD</span>`;
+            } else {
+                const ton = wd.tonAmount || (dAmt * 0.0005).toFixed(4);
+                convertedStr = `<span style="color:#60a5fa;font-weight:800;">${ton} TON</span>`;
+            }
 
             let dateStr = '-';
             try {
@@ -693,8 +702,8 @@ async function loadWithdrawals(filter = 'pending') {
                 </div>
                 ${isPending ? `
                 <div class="card-actions">
-                    <button class="btn btn-approve" onclick="actionWd('${wd.id}','approve','${wd.userId}',${dAmt})">✅ Approve</button>
-                    <button class="btn btn-reject" onclick="actionWd('${wd.id}','reject','${wd.userId}',${dAmt})">❌ Refund & Reject</button>
+                    <button class="btn btn-approve" data-wd-id="${wd.id}" data-method="${wd.method||'tonkeeper'}" data-address="${wd.details||''}" onclick="actionWd('${wd.id}','approve','${wd.userId}',${dAmt},'${wd.method||'tonkeeper'}','${wd.details||''}')">✅ Approve</button>
+                    <button class="btn btn-reject" data-wd-id="${wd.id}" data-method="${wd.method||'tonkeeper'}" data-address="${wd.details||''}" onclick="actionWd('${wd.id}','reject','${wd.userId}',${dAmt},'${wd.method||'tonkeeper'}','${wd.details||''}')">❌ Refund & Reject</button>
                 </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:0;">Processed</p>`}
             `;
             list.appendChild(div);
@@ -722,7 +731,7 @@ async function loadDeposits(filter = 'pending') {
         docs.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         list.innerHTML = '';
-        docs.forEach(async dep => {
+        docs.forEach(dep => {
             const isPending = dep.status === 'pending';
             const isApproved = dep.status === 'approved';
             const statusColor = isApproved ? 'var(--success-color)' : dep.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
@@ -1125,33 +1134,42 @@ window.sendBroadcast = async () => {
     document.getElementById('bc-progress-pct').textContent  = '0%';
 
     try {
-        // Paginated Firestore read — gets ALL users in batches of 1000
+        // ── 1 READ for ALL users — meta/userIds stores all Telegram IDs ──
+        // Falls back to Firestore query if meta doc not ready yet
         let userIds = [];
-        let lastDoc = null;
-        const PAGE  = 1000;
-
-        while (true) {
-            let q;
-            if (target === 'active') {
-                q = lastDoc
-                    ? query(collection(db,'users'), where('isBanned','==',false), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
-                    : query(collection(db,'users'), where('isBanned','==',false), limit(PAGE));
-            } else if (target === 'no_withdraw') {
-                q = lastDoc
-                    ? query(collection(db,'users'), where('validReferrals','==',0), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
-                    : query(collection(db,'users'), where('validReferrals','==',0), limit(PAGE));
+        try {
+            const metaSnap = await getDoc(doc(db, 'meta', 'userIds'));
+            if (metaSnap.exists() && metaSnap.data().ids?.length > 0) {
+                const allIds = metaSnap.data().ids || [];
+                // For 'active' or 'no_withdraw' targets, we still need to filter
+                // But for 'all' — use directly (0 extra reads)
+                if (target === 'all') {
+                    userIds = allIds;
+                } else {
+                    // Batch read users 500 at a time for filtered targets
+                    const CHUNK = 500;
+                    for (let i = 0; i < allIds.length; i += CHUNK) {
+                        const chunk = allIds.slice(i, i + CHUNK);
+                        const snaps = await Promise.all(chunk.map(id => getDoc(doc(db,'users',id))));
+                        snaps.forEach((s, idx) => {
+                            if (!s.exists()) return;
+                            const u = s.data();
+                            if (u.isBanned) return;
+                            if (target === 'active' && !(u.adsWatchedAd1||u.adsWatchedAd2||u.adsWatchedAd3||u.adsWatchedAd4)) return;
+                            if (target === 'no_withdraw' && (u.validReferrals||0) > 0) return;
+                            userIds.push(chunk[idx]);
+                        });
+                    }
+                }
             } else {
-                q = lastDoc
-                    ? query(collection(db,'users'), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
-                    : query(collection(db,'users'), limit(PAGE));
+                throw new Error('meta/userIds not ready');
             }
-            const snap = await getDocs(q);
-            if (snap.empty) break;
-            snap.forEach(d => {
-                if (!d.data().isBanned) userIds.push(d.id);
-            });
-            lastDoc = snap.docs[snap.docs.length - 1];
-            if (snap.size < PAGE) break; // last page
+        } catch(metaErr) {
+            // Fallback: query Firestore directly (old method)
+            console.warn('meta/userIds fallback:', metaErr.message);
+            statusEl.textContent = '⚠️ Using fallback (meta doc not ready). This uses more reads.';
+            const snap = await getDocs(query(collection(db,'users'), limit(5000)));
+            snap.forEach(d => { if(!d.data().isBanned) userIds.push(d.id); });
         }
 
         const total = userIds.length;
@@ -1406,7 +1424,7 @@ window.editBalance = async (uid, type) => {
 };
 
 // ── Withdrawal Approvals/Rejections (Atomic Transaction Level - NO API required) ──
-window.actionWd = async (id, type, uid, amt) => {
+window.actionWd = async (id, type, uid, amt, method, address) => {
     if (!confirm(`Confirm ${type === 'approve' ? '✅ Approve' : '❌ Reject & Refund'}?`)) return;
     const btns = document.querySelectorAll(`[data-wd-id="${id}"]`);
     btns.forEach(b => { b.disabled = true; b.textContent = '⏳...'; });
@@ -1426,6 +1444,35 @@ window.actionWd = async (id, type, uid, amt) => {
             }
         });
         showAdminToast(type === 'approve' ? '✅ Withdrawal approved!' : '❌ Withdrawal rejected and diamonds refunded.');
+
+        // Send Telegram notification to user
+        try {
+            method  = method  || btns[0]?.dataset?.method  || '';
+            address = address || btns[0]?.dataset?.address || '';
+            const currLabel = method === 'bkash' ? 'BDT' : method === 'binance' ? 'USD' : 'TON';
+            const currIcon  = method === 'bkash' ? '৳' : method === 'binance' ? '$' : '';
+            const botToken  = getGlobalBotToken();
+            if (botToken && uid) {
+                let msg = '';
+                if (type === 'approve') {
+                    msg = `✅ <b>Withdrawal Approved!</b>\n\n` +
+                          `💎 <b>${amt} Diamond</b> → <b>${currIcon}${(amt * (method==='bkash'?0.12:method==='binance'?0.001:0.0005)).toFixed(method==='bkash'?0:4)} ${currLabel}</b>\n` +
+                          `📬 Method: ${method || 'tonkeeper'}\n` +
+                          `📍 Address: <code>${address}</code>\n\n` +
+                          `🎉 Your withdrawal has been processed. Thank you!`;
+                } else {
+                    msg = `❌ <b>Withdrawal Rejected</b>\n\n` +
+                          `💎 <b>${amt} Diamond</b> has been refunded to your account.\n\n` +
+                          `If you have questions, contact support.`;
+                }
+                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: uid, text: msg, parse_mode: 'HTML' })
+                });
+            }
+        } catch(notifErr) { console.warn('Notify failed:', notifErr); }
+
         loadWithdrawals('pending');
         loadDashboard();
     } catch(e) {
