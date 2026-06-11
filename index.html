@@ -149,8 +149,8 @@
         <button class="nav-btn" data-target="users"><i class="fas fa-users"></i> Users</button>
         <button class="nav-btn" data-target="add-task" style="border-color:var(--accent); color:var(--accent);"><i class="fas fa-plus-circle"></i> Create Task</button>
         <button class="nav-btn" data-target="withdrawals"><i class="fas fa-wallet"></i> Withdrawals <span id="nav-pending-count" style="background:var(--danger-color);color:white;padding:1px 6px;border-radius:10px;font-size:0.75em;display:none;margin-left:4px;">0</span></button>
-        <button class="nav-btn" data-target="deposits" style="border-color:var(--warning-color); color:var(--warning-color);"><i class="fas fa-coins"></i> Deposit Requests</button>
         <button class="nav-btn" data-target="tasks-approval" style="border-color:var(--success-color); color:var(--success-color);"><i class="fas fa-clipboard-check"></i> Tasks Approval</button>
+        <button class="nav-btn" data-target="deposit-sent" style="border-color:#06b6d4; color:#06b6d4;"><i class="fas fa-paper-plane"></i> Deposit Sent</button>
         <button class="nav-btn" data-target="all-tasks" style="border-color:#f59e0b; color:#f59e0b;"><i class="fas fa-list"></i> All Tasks</button>
         <button class="nav-btn" data-target="promo-codes" style="border-color:#c084fc;color:#c084fc;"><i class="fas fa-gift"></i> Promo Codes</button>
         <button class="nav-btn" data-target="settings" style="border-color:#60a5fa;color:#60a5fa;"><i class="fas fa-gear"></i> Settings</button>
@@ -164,7 +164,6 @@
             <div class="dash-card"><h3>Total Users</h3><p class="count" id="dash-total-users">...</p></div>
             <div class="dash-card"><h3>Daily Joined</h3><p class="count" id="dash-daily-users">0</p></div>
             <div class="dash-card"><h3>Pending Withdraw</h3><p class="count" id="dash-pending-withdrawals" style="color:var(--danger-color);">0</p></div>
-            <div class="dash-card"><h3>Pending Deposits</h3><p class="count" id="dash-pending-deposits" style="color:var(--warning-color);">0</p></div>
             <div class="dash-card"><h3>Pending Tasks</h3><p class="count" id="dash-pending-tasks" style="color:var(--accent);">0</p></div>
         </div>
     </div>
@@ -243,17 +242,38 @@
         <div id="withdrawals-list" class="grid-list"></div>
     </div>
 
-    <!-- ══ DEPOSIT REQUESTS ══ -->
-    <div id="deposits" class="admin-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-            <h2>📥 Deposit Requests</h2>
-            <div style="display:flex; gap:8px;">
-                <button onclick="loadDeposits('pending')" class="btn btn-gold" style="flex:0; padding:7px 14px;">Pending</button>
-                <button onclick="loadDeposits('approved')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:var(--success-color);">Approved</button>
-                <button onclick="loadDeposits('all')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#aaa;">All</button>
+
+
+    <!-- ══ DEPOSIT SENT ══ -->
+    <div id="deposit-sent" class="admin-section">
+        <h2 style="color:#06b6d4; margin-bottom:18px;">📤 Send Deposit (TON)</h2>
+        <div style="max-width:520px; margin:0 auto; background:var(--bg-card); padding:26px; border-radius:18px; border:1.5px solid #06b6d4; box-shadow:0 4px 15px rgba(6,182,212,0.1);">
+            <div class="form-group">
+                <label>User Telegram ID</label>
+                <input type="text" id="dep-uid" placeholder="e.g. 7054894635">
             </div>
+            <div class="form-group">
+                <label>TON Amount Sent</label>
+                <input type="number" step="0.001" id="dep-ton-amt" placeholder="e.g. 0.5">
+            </div>
+            <div class="form-group">
+                <label>Note (optional)</label>
+                <input type="text" id="dep-note" placeholder="e.g. Task payment, manual deposit...">
+            </div>
+            <button class="submit-btn" style="background:linear-gradient(135deg,#0891b2,#06b6d4);" onclick="sendDepositNotification()">
+                <i class="fas fa-paper-plane"></i> Send Notification to User
+            </button>
+            <div id="dep-result" style="margin-top:14px; text-align:center; font-size:0.88em;"></div>
         </div>
-        <div id="deposits-list" class="grid-list"></div>
+
+        <!-- Deposit Sent History -->
+        <div style="margin-top:28px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h3 style="color:#06b6d4;">📋 Sent History</h3>
+                <button onclick="loadDepositSentHistory()" class="btn" style="padding:7px 14px; background:#1e293b; color:#06b6d4; border:1px solid #06b6d4; flex:0;">🔄 Refresh</button>
+            </div>
+            <div id="deposit-sent-list" class="grid-list"></div>
+        </div>
     </div>
 
     <!-- ══ TASKS APPROVAL ══ -->
@@ -429,7 +449,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, startAfter, doc, updateDoc, increment, deleteDoc, setDoc, addDoc, serverTimestamp, runTransaction, Timestamp, limit, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey:"AIzaSyBiCyauYlaty5Th0_uPfCnhTcaTHzzKDM4",
@@ -517,7 +537,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         const t = btn.dataset.target;
         document.getElementById(t).classList.add('active');
         if (t === 'withdrawals')    loadWithdrawals('pending');
-        if (t === 'deposits')       loadDeposits('pending');
+        if (t === 'deposit-sent')   loadDepositSentHistory();
         if (t === 'tasks-approval')  loadPendingTasks(false);
         if (t === 'all-tasks')       loadAllTasks('all');
         if (t === 'add-task')       { document.getElementById('admin-t-msg').textContent = ''; switchTaskForm('api'); }
@@ -593,15 +613,13 @@ document.getElementById('createAdminTaskForm').addEventListener('submit', async 
 // ── DASHBOARD OVERVIEW ──
 async function loadDashboard() {
     try {
-        const [uSnap, wSnap, dSnap, tSnap] = await Promise.all([
+        const [uSnap, wSnap, tSnap] = await Promise.all([
             getCountFromServer(collection(db,'users')),
             getCountFromServer(query(collection(db,'withdrawals'), where('status','==','pending'))),
-            getCountFromServer(query(collection(db,'deposits'), where('status','==','pending'))),
             getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false)))
         ]);
         document.getElementById('dash-total-users').textContent = uSnap.data().count;
         document.getElementById('dash-pending-withdrawals').textContent = wSnap.data().count;
-        document.getElementById('dash-pending-deposits').textContent = dSnap.data().count;
         document.getElementById('dash-pending-tasks').textContent = tSnap.data().count;
 
         const pCount = wSnap.data().count;
@@ -651,15 +669,21 @@ async function loadWithdrawals(filter = 'pending') {
 
         list.innerHTML = '';
         for (const wd of docs) {
-            let username = '', totalRefs = 0, validRefs = 0, tasksDone = 0;
+            let username = '', userInfo = {};
             try {
                 const us = await getDoc(doc(db,'users',wd.userId));
                 if(us.exists()){
                     const ud = us.data();
-                    username   = ud.telegramUsername || ud.firstName || '';
-                    totalRefs  = ud.totalInvites     || 0;
-                    validRefs  = ud.validReferrals   || 0;
-                    tasksDone  = (ud.completedTasks  || []).length;
+                    username = ud.telegramUsername || ud.firstName || '';
+                    userInfo = {
+                        username: ud.telegramUsername || 'N/A',
+                        totalInvites: ud.totalInvites || 0,
+                        validReferrals: ud.validReferrals || 0,
+                        adsWatched: (ud.adsWatchedAd1||0)+(ud.adsWatchedAd2||0)+(ud.adsWatchedAd3||0)+(ud.adsWatchedAd4||0),
+                        diamondBalance: ud.diamondBalance || 0,
+                        tonBalance: ud.tonBalance || 0,
+                        lootboxBalance: ud.lootboxBalance || 0,
+                    };
                 }
             } catch(e){}
 
@@ -669,18 +693,10 @@ async function loadWithdrawals(filter = 'pending') {
             const statusColor = isApproved ? 'var(--success-color)' : wd.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
 
             const dAmt = wd.diamondAmount || 0;
-            // Use stored tonAmount if available, else calculate from rates
             let convertedStr = '';
-            if (wd.method === 'bkash'){
-                const bdt = wd.tonAmount || Math.round(dAmt * 0.12);
-                convertedStr = `<span style="color:#e2136e;font-weight:800;">${bdt.toLocaleString()} BDT</span>`;
-            } else if (wd.method === 'binance'){
-                const usd = wd.tonAmount || (dAmt * 0.001).toFixed(2);
-                convertedStr = `<span style="color:#f0b90b;font-weight:800;">$${usd} USD</span>`;
-            } else {
-                const ton = wd.tonAmount || (dAmt * 0.0005).toFixed(4);
-                convertedStr = `<span style="color:#60a5fa;font-weight:800;">${ton} TON</span>`;
-            }
+            if (wd.method === 'binance')   convertedStr = `≈ ${(dAmt/1000).toFixed(4)} USDT  (1K💎=$1)`;
+            if (wd.method === 'tonkeeper') convertedStr = `≈ ${(dAmt*0.0005).toFixed(4)} TON  (1K💎=0.5TON)`;
+            if (wd.method === 'bkash')     convertedStr = `≈ ৳${(dAmt*0.12).toFixed(2)} BDT  (1K💎=120৳)`;
 
             let dateStr = '-';
             try {
@@ -694,31 +710,39 @@ async function loadWithdrawals(filter = 'pending') {
             div.innerHTML = `
                 <div class="card-header">
                     <div>
-                        <span class="username">${username ? '@'+username : 'User'}</span>
+                        <span class="username">@${userInfo.username || username || 'User'}</span>
                         <span class="userid">${wd.userId}</span>
                     </div>
                     <span style="background:${statusColor}; color:#000; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">${(wd.status||'pending').toUpperCase()}</span>
                 </div>
                 <div class="card-stats">
-                    <div class="stat-row"><span>👤 Username:</span><span class="stat-val" style="color:#60a5fa;">@${username||'N/A'}</span></div>
-                    <div class="stat-row"><span>🆔 UID:</span><span class="stat-val" style="font-family:var(--mono);font-size:0.8em;">${wd.userId} <button class="btn-copy" style="margin-left:4px;" onclick="copyTxt('${wd.userId}')">COPY</button></span></div>
-                    <div class="stat-row"><span>📅 Date:</span><span class="stat-val" style="color:#aaa;font-size:0.82em;">${dateStr}</span></div>
+                    <div class="stat-row"><span>📅 Date:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dateStr}</span></div>
                     <div class="stat-row"><span>💳 Method:</span><span class="stat-val" style="color:var(--diamond);">${(wd.method||'N/A').toUpperCase()}</span></div>
-                    <div class="stat-row"><span>💎 Amount:</span><span class="stat-val" style="color:var(--diamond);font-size:1.1em;font-weight:900;">${dAmt} 💎</span></div>
-                    <div class="stat-row"><span>💰 Value:</span><span class="stat-val">${convertedStr}</span></div>
-                    <div class="stat-row"><span>📋 Address:</span>
+                    <div class="stat-row"><span>💎 Withdraw Amount:</span><span class="stat-val" style="color:var(--diamond); font-size:1.1em; font-weight:900;">${dAmt} 💎</span></div>
+                    <div class="stat-row"><span>💰 Converted Value:</span><span class="stat-val" style="color:var(--success-color);">${convertedStr || 'N/A'}</span></div>
+                    <div class="stat-row"><span>📋 Wallet / Address:</span>
                         <div class="wallet-box"><span class="wallet-addr">${walletAddr}</span>
                         <button class="btn-copy" onclick="copyTxt('${walletAddr.replace(/'/g,"\'")}')">COPY</button></div>
                     </div>
-                    <div class="stat-row"><span>✅ Tasks Done:</span><span class="stat-val" style="color:var(--success-color);">${tasksDone}</span></div>
-                    <div class="stat-row"><span>👥 Total Refs:</span><span class="stat-val">${totalRefs}</span></div>
-                    <div class="stat-row"><span>🏆 Valid Refs:</span><span class="stat-val" style="color:#f59e0b;font-weight:800;">${validRefs}</span></div>
                 </div>
+
+                <!-- User Info Panel -->
+                <div style="background:#0f172a; border:1px solid #334155; border-radius:12px; padding:12px; margin-top:4px;">
+                    <div style="font-size:0.72em; color:#06b6d4; font-weight:800; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">👤 User Info</div>
+                    <div class="stat-row"><span style="color:#94a3b8;">Telegram Username</span><span class="stat-val" style="color:#fff;">@${userInfo.username||'N/A'}</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">Telegram UID</span><span class="stat-val" style="font-family:monospace; color:#60a5fa;">${wd.userId}</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">Total Refers</span><span class="stat-val">${userInfo.totalInvites||0}</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">Valid Refers</span><span class="stat-val" style="color:#10b981;">${userInfo.validReferrals||0}</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">Ads Watched Today</span><span class="stat-val" style="color:#f59e0b;">${userInfo.adsWatched||0}</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">💎 Diamond Balance</span><span class="stat-val" style="color:#06b6d4;">${(userInfo.diamondBalance||0).toFixed(2)} 💎</span></div>
+                    ${wd.method === 'tonkeeper' ? `<div class="stat-row"><span style="color:#94a3b8;">💰 TON Balance</span><span class="stat-val" style="color:#60a5fa;">${(userInfo.tonBalance||0).toFixed(4)} TON</span></div>` : ''}
+                </div>
+
                 ${isPending ? `
-                <div class="card-actions">
-                    <button class="btn btn-approve" data-wd-id="${wd.id}" data-method="${wd.method||'tonkeeper'}" data-address="${wd.details||''}" onclick="actionWd('${wd.id}','approve','${wd.userId}',${dAmt},'${wd.method||'tonkeeper'}','${wd.details||''}')">✅ Approve</button>
-                    <button class="btn btn-reject" data-wd-id="${wd.id}" data-method="${wd.method||'tonkeeper'}" data-address="${wd.details||''}" onclick="actionWd('${wd.id}','reject','${wd.userId}',${dAmt},'${wd.method||'tonkeeper'}','${wd.details||''}')">❌ Refund & Reject</button>
-                </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:0;">Processed</p>`}
+                <div class="card-actions" style="margin-top:10px;">
+                    <button class="btn btn-approve" onclick="actionWd('${wd.id}','approve','${wd.userId}',${dAmt})">✅ Approve</button>
+                    <button class="btn btn-reject" onclick="actionWd('${wd.id}','reject','${wd.userId}',${dAmt})">❌ Refund & Reject</button>
+                </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:6px 0 0;">Processed</p>`}
             `;
             list.appendChild(div);
         }
@@ -726,85 +750,6 @@ async function loadWithdrawals(filter = 'pending') {
 }
 window.loadWithdrawals = loadWithdrawals;
 
-// ── DEPOSITS ──
-async function loadDeposits(filter = 'pending') {
-    const list = document.getElementById('deposits-list');
-    list.innerHTML = '<div class="loader"></div>';
-    try {
-        let q;
-        if (filter === 'all') {
-            q = query(collection(db,'deposits'), limit(80));
-        } else {
-            q = query(collection(db,'deposits'), where('status','==',filter), limit(80));
-        }
-        const snap = await getDocs(q);
-        if (snap.empty) { list.innerHTML = '<p style="text-align:center; color:#666; padding:30px;">No deposit requests found.</p>'; return; }
-
-        const docs = [];
-        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-        docs.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
-        list.innerHTML = '';
-        docs.forEach(dep => {
-            const isPending = dep.status === 'pending';
-            const isApproved = dep.status === 'approved';
-            const statusColor = isApproved ? 'var(--success-color)' : dep.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
-
-            let dateStr = '-';
-            try {
-                const ts = dep.createdAt?.toDate ? dep.createdAt.toDate() : new Date((dep.createdAt?.seconds||0)*1000);
-                dateStr = ts.toLocaleString('en-BD', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
-            } catch(e){}
-
-            const div = document.createElement('div');
-            div.className = 'card-item';
-            div.style.borderColor = isApproved ? 'rgba(16,185,129,0.35)' : isPending ? 'rgba(245,158,11,0.35)' : 'rgba(239,68,68,0.35)';
-            // Fetch user warning info for this deposit
-            let warnCount = 0, isDepBanned = false;
-            try {
-                const uSnap2 = await getDoc(doc(db,'users', dep.userId));
-                if (uSnap2.exists()) {
-                    warnCount = uSnap2.data().depositWarnings || 0;
-                    isDepBanned = uSnap2.data().depositBanned === true;
-                }
-            } catch(e){}
-
-            const warnBadge = isDepBanned
-                ? `<span style="background:#ef4444;color:#fff;padding:3px 9px;border-radius:5px;font-weight:800;font-size:0.72em;margin-left:6px;">🚫 DEPOSIT BANNED</span>`
-                : warnCount > 0
-                    ? `<span style="background:#f59e0b;color:#000;padding:3px 9px;border-radius:5px;font-weight:800;font-size:0.72em;margin-left:6px;">⚠️ ${warnCount}/3 WARNINGS</span>`
-                    : '';
-
-            div.innerHTML = `
-                <div class="card-header">
-                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-                        <span class="username">@${dep.username || 'NoName'}</span>
-                        <span class="userid">${dep.userId}</span>
-                        ${warnBadge}
-                    </div>
-                    <span style="background:${statusColor}; color:#000; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">${(dep.status||'pending').toUpperCase()}</span>
-                </div>
-                <div class="card-stats">
-                    <div class="stat-row"><span>📅 Date:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dateStr}</span></div>
-                    <div class="stat-row"><span>💎 Expected Diamonds:</span><span class="stat-val" style="color:var(--diamond); font-size:1.1rem; font-weight:800;">+${dep.expectedDiamond || 0} 💎</span></div>
-                    <div class="stat-row"><span>TON Amount:</span><span class="stat-val" style="color:var(--primary); font-weight:800;">${dep.tonAmount || 0} TON</span></div>
-                    <div class="stat-row"><span>🔑 Comment / Memo:</span><span class="stat-val" style="font-family:var(--mono); color:var(--warning-color);">${dep.memo || 'N/A'}</span></div>
-                    ${warnCount > 0 ? `<div class="stat-row"><span>⚠️ Fake Request History:</span><span class="stat-val" style="color:${isDepBanned?'#ef4444':'#f59e0b'};font-weight:800;">${isDepBanned ? '🚫 Permanently Banned' : warnCount + ' warning(s) issued'}</span></div>` : ''}
-                </div>
-                ${isPending ? `
-                <div class="card-actions" style="flex-direction:column;gap:8px;">
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn btn-approve" onclick="approveDeposit('${dep.id}','${dep.userId}',${dep.expectedDiamond || 0})">✅ Verify & Credit</button>
-                        <button class="btn btn-reject" onclick="rejectDeposit('${dep.id}','${dep.userId}',${warnCount})">❌ Decline</button>
-                    </div>
-                    ${warnCount >= 1 && !isDepBanned ? `<button class="btn" style="background:#ef4444;color:#fff;width:100%;padding:9px;" onclick="banDeposit('${dep.userId}')">🚫 Permanently Ban Deposits</button>` : ''}
-                </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:0;">Deposit ${dep.status === 'approved' ? 'Verified ✅' : 'Rejected ❌'}</p>`}
-            `;
-            list.appendChild(div);
-        });
-    } catch(e) { list.innerHTML = `<p style="color:var(--danger-color); text-align:center; padding:20px;">Error: ${e.message}</p>`; }
-}
-window.loadDeposits = loadDeposits;
 
 // ── TASKS APPROVAL QUEUE ──
 async function loadPendingTasks(approved = false) {
@@ -1148,42 +1093,33 @@ window.sendBroadcast = async () => {
     document.getElementById('bc-progress-pct').textContent  = '0%';
 
     try {
-        // ── 1 READ for ALL users — meta/userIds stores all Telegram IDs ──
-        // Falls back to Firestore query if meta doc not ready yet
+        // Paginated Firestore read — gets ALL users in batches of 1000
         let userIds = [];
-        try {
-            const metaSnap = await getDoc(doc(db, 'meta', 'userIds'));
-            if (metaSnap.exists() && metaSnap.data().ids?.length > 0) {
-                const allIds = metaSnap.data().ids || [];
-                // For 'active' or 'no_withdraw' targets, we still need to filter
-                // But for 'all' — use directly (0 extra reads)
-                if (target === 'all') {
-                    userIds = allIds;
-                } else {
-                    // Batch read users 500 at a time for filtered targets
-                    const CHUNK = 500;
-                    for (let i = 0; i < allIds.length; i += CHUNK) {
-                        const chunk = allIds.slice(i, i + CHUNK);
-                        const snaps = await Promise.all(chunk.map(id => getDoc(doc(db,'users',id))));
-                        snaps.forEach((s, idx) => {
-                            if (!s.exists()) return;
-                            const u = s.data();
-                            if (u.isBanned) return;
-                            if (target === 'active' && !(u.adsWatchedAd1||u.adsWatchedAd2||u.adsWatchedAd3||u.adsWatchedAd4)) return;
-                            if (target === 'no_withdraw' && (u.validReferrals||0) > 0) return;
-                            userIds.push(chunk[idx]);
-                        });
-                    }
-                }
+        let lastDoc = null;
+        const PAGE  = 1000;
+
+        while (true) {
+            let q;
+            if (target === 'active') {
+                q = lastDoc
+                    ? query(collection(db,'users'), where('isBanned','==',false), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), where('isBanned','==',false), limit(PAGE));
+            } else if (target === 'no_withdraw') {
+                q = lastDoc
+                    ? query(collection(db,'users'), where('validReferrals','==',0), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), where('validReferrals','==',0), limit(PAGE));
             } else {
-                throw new Error('meta/userIds not ready');
+                q = lastDoc
+                    ? query(collection(db,'users'), orderBy('__name__'), startAfter(lastDoc), limit(PAGE))
+                    : query(collection(db,'users'), limit(PAGE));
             }
-        } catch(metaErr) {
-            // Fallback: query Firestore directly (old method)
-            console.warn('meta/userIds fallback:', metaErr.message);
-            statusEl.textContent = '⚠️ Using fallback (meta doc not ready). This uses more reads.';
-            const snap = await getDocs(query(collection(db,'users'), limit(5000)));
-            snap.forEach(d => { if(!d.data().isBanned) userIds.push(d.id); });
+            const snap = await getDocs(q);
+            if (snap.empty) break;
+            snap.forEach(d => {
+                if (!d.data().isBanned) userIds.push(d.id);
+            });
+            lastDoc = snap.docs[snap.docs.length - 1];
+            if (snap.size < PAGE) break; // last page
         }
 
         const total = userIds.length;
@@ -1304,6 +1240,123 @@ window.loadBroadcastHistory = async () => {
         });
     } catch(e) {
         listEl.textContent = 'Error: ' + e.message;
+    }
+};
+
+// ── DEPOSIT SENT ──
+window.sendDepositNotification = async () => {
+    const uid     = document.getElementById('dep-uid').value.trim();
+    const tonAmt  = parseFloat(document.getElementById('dep-ton-amt').value);
+    const note    = document.getElementById('dep-note').value.trim() || 'Manual deposit';
+    const resEl   = document.getElementById('dep-result');
+
+    if (!uid || !tonAmt || isNaN(tonAmt)) {
+        resEl.style.color = 'var(--danger-color)';
+        resEl.textContent = '❌ Fill in User ID and TON amount.';
+        return;
+    }
+
+    const botToken = getGlobalBotToken();
+    if (!botToken) {
+        resEl.style.color = 'var(--danger-color)';
+        resEl.textContent = '❌ Set Bot Token in the header first.';
+        return;
+    }
+
+    resEl.style.color = '#aaa';
+    resEl.textContent = '⏳ Sending notification...';
+
+    const diamondEquiv = (tonAmt * 2000).toFixed(0); // 0.5 TON = 1000💎 → 1 TON = 2000💎
+    const usdEquiv     = (tonAmt * 2).toFixed(2);    // 0.5 TON = $1 → 1 TON = $2
+
+    const message =
+`✅ <b>Your deposit has been received successfully!</b>
+
+💰 <b>Amount Sent:</b> ${tonAmt} TON
+💎 <b>Diamond Equivalent:</b> ~${diamondEquiv} 💎
+💵 <b>USD Value:</b> ~$${usdEquiv} USDT
+
+📝 <b>Note:</b> ${note}
+
+Thank you! Open the app to check your balance. 🚀`;
+
+    try {
+        const resp = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: uid,
+                text: message,
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [[
+                    { text: '🚀 Open Coinly Task', url: 'https://t.me/Coinlytix_bot/TaskEarn' }
+                ]]}
+            })
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+            // Save to Firestore for history
+            try {
+                await addDoc(collection(db, 'deposit_sent'), {
+                    userId:   uid,
+                    tonAmount: tonAmt,
+                    diamondEquiv: parseInt(diamondEquiv),
+                    note,
+                    sentAt: serverTimestamp(),
+                    sentBy: auth.currentUser?.email || 'admin'
+                });
+            } catch(e) { console.warn('History save failed:', e); }
+
+            resEl.style.color = 'var(--success-color)';
+            resEl.textContent = `✅ Notification sent to user ${uid}!`;
+            document.getElementById('dep-uid').value = '';
+            document.getElementById('dep-ton-amt').value = '';
+            document.getElementById('dep-note').value = '';
+            loadDepositSentHistory();
+        } else {
+            resEl.style.color = 'var(--danger-color)';
+            resEl.textContent = `❌ Telegram error: ${data.description || 'Unknown error'}`;
+        }
+    } catch(e) {
+        resEl.style.color = 'var(--danger-color)';
+        resEl.textContent = '❌ Network error: ' + e.message;
+    }
+};
+
+window.loadDepositSentHistory = async () => {
+    const list = document.getElementById('deposit-sent-list');
+    if (!list) return;
+    list.innerHTML = '<div class="loader"></div>';
+    try {
+        const snap = await getDocs(query(collection(db,'deposit_sent'), orderBy('sentAt','desc'), limit(30)));
+        if (snap.empty) { list.innerHTML = '<p style="color:#666; text-align:center; padding:20px;">No deposit notifications sent yet.</p>'; return; }
+        list.innerHTML = '';
+        snap.forEach(d => {
+            const dep = d.data();
+            let dateStr = '-';
+            try { dateStr = dep.sentAt?.toDate().toLocaleString('en-BD', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); } catch(e){}
+            const div = document.createElement('div');
+            div.className = 'card-item';
+            div.style.borderColor = 'rgba(6,182,212,0.35)';
+            div.innerHTML = `
+                <div class="card-header">
+                    <div>
+                        <span class="username" style="color:#06b6d4;">UID: ${dep.userId}</span>
+                        <span class="userid">${dateStr}</span>
+                    </div>
+                    <span style="background:rgba(6,182,212,0.2); color:#06b6d4; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">SENT</span>
+                </div>
+                <div class="card-stats">
+                    <div class="stat-row"><span>💰 TON Sent:</span><span class="stat-val" style="color:#60a5fa; font-size:1.05em; font-weight:800;">${dep.tonAmount} TON</span></div>
+                    <div class="stat-row"><span>💎 Diamond Equiv:</span><span class="stat-val" style="color:var(--diamond);">~${dep.diamondEquiv} 💎</span></div>
+                    <div class="stat-row"><span>📝 Note:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dep.note || '-'}</span></div>
+                    <div class="stat-row"><span>👤 Sent By:</span><span class="stat-val" style="color:#aaa; font-size:0.78em;">${dep.sentBy || 'admin'}</span></div>
+                </div>`;
+            list.appendChild(div);
+        });
+    } catch(e) {
+        list.innerHTML = `<p style="color:var(--danger-color); text-align:center;">Error: ${e.message}</p>`;
     }
 };
 
@@ -1438,7 +1491,7 @@ window.editBalance = async (uid, type) => {
 };
 
 // ── Withdrawal Approvals/Rejections (Atomic Transaction Level - NO API required) ──
-window.actionWd = async (id, type, uid, amt, method, address) => {
+window.actionWd = async (id, type, uid, amt) => {
     if (!confirm(`Confirm ${type === 'approve' ? '✅ Approve' : '❌ Reject & Refund'}?`)) return;
     const btns = document.querySelectorAll(`[data-wd-id="${id}"]`);
     btns.forEach(b => { b.disabled = true; b.textContent = '⏳...'; });
@@ -1458,35 +1511,6 @@ window.actionWd = async (id, type, uid, amt, method, address) => {
             }
         });
         showAdminToast(type === 'approve' ? '✅ Withdrawal approved!' : '❌ Withdrawal rejected and diamonds refunded.');
-
-        // Send Telegram notification to user
-        try {
-            method  = method  || btns[0]?.dataset?.method  || '';
-            address = address || btns[0]?.dataset?.address || '';
-            const currLabel = method === 'bkash' ? 'BDT' : method === 'binance' ? 'USD' : 'TON';
-            const currIcon  = method === 'bkash' ? '৳' : method === 'binance' ? '$' : '';
-            const botToken  = getGlobalBotToken();
-            if (botToken && uid) {
-                let msg = '';
-                if (type === 'approve') {
-                    msg = `✅ <b>Withdrawal Approved!</b>\n\n` +
-                          `💎 <b>${amt} Diamond</b> → <b>${currIcon}${(amt * (method==='bkash'?0.12:method==='binance'?0.001:0.0005)).toFixed(method==='bkash'?0:4)} ${currLabel}</b>\n` +
-                          `📬 Method: ${method || 'tonkeeper'}\n` +
-                          `📍 Address: <code>${address}</code>\n\n` +
-                          `🎉 Your withdrawal has been processed. Thank you!`;
-                } else {
-                    msg = `❌ <b>Withdrawal Rejected</b>\n\n` +
-                          `💎 <b>${amt} Diamond</b> has been refunded to your account.\n\n` +
-                          `If you have questions, contact support.`;
-                }
-                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: uid, text: msg, parse_mode: 'HTML' })
-                });
-            }
-        } catch(notifErr) { console.warn('Notify failed:', notifErr); }
-
         loadWithdrawals('pending');
         loadDashboard();
     } catch(e) {
@@ -1495,116 +1519,7 @@ window.actionWd = async (id, type, uid, amt, method, address) => {
     }
 };
 
-// ── Direct Deposit Approvals via Transaction + optional Vercel webhook fallback ──
-window.approveDeposit = async (depId, uid, diamondAmount) => {
-    if (!confirm(`Approve this TON deposit and credit ${diamondAmount} Diamonds to user?`)) return;
-    try {
-        const idToken = await auth.currentUser.getIdToken(true);
-        // Step 1: Securely update Firestore state via atomic runTransaction
-        await runTransaction(db, async (transaction) => {
-            const dRef = doc(db, 'deposits', depId);
-            const uRef = doc(db, 'users', uid);
-            const dSnap = await transaction.get(dRef);
-            const uSnap = await transaction.get(uRef);
 
-            if (!dSnap.exists()) throw new Error("Deposit details not found.");
-            if (dSnap.data().status !== 'pending') throw new Error("Already updated/processed.");
-
-            transaction.update(dRef, { status: 'approved', updatedAt: serverTimestamp() });
-            if (uSnap.exists()) {
-                // Deposit credits TON balance (not Diamond)
-                const tonAmt = dSnap.data().tonAmount || 0;
-                transaction.update(uRef, { tonBalance: increment(tonAmt) });
-            }
-        });
-
-        // Step 2: Fire webhook notifying Vercel / Telegram Bot
-        fetch(`${API}/api/approveDeposit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ depositId: depId, adminToken: idToken })
-        }).catch(err => console.log('API alert bypassed:', err));
-
-        showAdminToast('✅ Deposit approved & balances updated successfully!');
-        loadDeposits('pending');
-        loadDashboard();
-    } catch(e) {
-        alert('Approval failed: ' + e.message);
-    }
-};
-
-window.rejectDeposit = async (depId, userId, currentWarnings) => {
-    const warns = currentWarnings || 0;
-    const nextWarn = warns + 1;
-
-    let confirmMsg = '';
-    if (nextWarn === 1) {
-        confirmMsg = '⚠️ Issue WARNING 1/3 to this user?\n\nUser will receive a 1st warning notice. Deposit section will show a warning.';
-    } else if (nextWarn === 2) {
-        confirmMsg = '⚠️ Issue FINAL WARNING (2/3) to this user?\n\nUser will be told next violation = permanent deposit ban.';
-    } else {
-        confirmMsg = '🚫 This is the 3rd violation!\n\nUser deposit section will be PERMANENTLY BANNED. Continue?';
-    }
-    if (!confirm(confirmMsg)) return;
-
-    try {
-        const uRef = doc(db, 'users', userId);
-        const uSnap = await getDoc(uRef);
-        if (!uSnap.exists()) throw new Error('User not found');
-
-        const newWarnCount = (uSnap.data().depositWarnings || 0) + 1;
-        const permBan = newWarnCount >= 3;
-
-        // Update deposit status + user warning fields
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'deposits', depId), {
-            status: 'rejected',
-            updatedAt: serverTimestamp()
-        });
-        batch.update(uRef, {
-            depositWarnings: increment(1),
-            ...(permBan ? { depositBanned: true } : {}),
-            lastWarningAt: serverTimestamp(),
-        });
-        await batch.commit();
-
-        // Notify via API (Telegram message to user)
-        try {
-            await fetch(`${API}/api/approveDeposit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    depositId: depId,
-                    action: 'reject',
-                    warningCount: newWarnCount,
-                    permBan,
-                    adminNote: permBan
-                        ? 'Third fake deposit violation. Your deposit section has been permanently disabled.'
-                        : newWarnCount === 2
-                            ? 'Second fake deposit request detected. This is your FINAL WARNING — next violation will permanently disable your deposit section.'
-                            : 'Fake deposit request detected. This is Warning 1 of 3.'
-                })
-            });
-        } catch(e) { console.warn('API notify failed:', e); }
-
-        const msg = permBan
-            ? '🚫 User deposit section permanently banned!'
-            : `⚠️ Warning ${newWarnCount}/3 issued to user.`;
-        showAdminToast(msg);
-        loadDeposits('pending');
-        loadDashboard();
-    } catch(e) { alert('Error: ' + e.message); }
-};
-
-// Manually ban deposits from deposit card
-window.banDeposit = async (userId) => {
-    if (!confirm('🚫 Permanently ban this user from making deposit requests?')) return;
-    try {
-        await updateDoc(doc(db,'users', userId), { depositBanned: true });
-        showAdminToast('🚫 Deposit permanently banned for this user.');
-        loadDeposits('pending');
-    } catch(e) { alert('Error: ' + e.message); }
-};
 
 // ── Task Approval actions ──
 window.approveTask = async (taskId) => {
