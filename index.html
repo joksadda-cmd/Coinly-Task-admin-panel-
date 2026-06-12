@@ -165,8 +165,6 @@
             <div class="dash-card"><h3>Daily Joined</h3><p class="count" id="dash-daily-users">0</p></div>
             <div class="dash-card"><h3>Pending Withdraw</h3><p class="count" id="dash-pending-withdrawals" style="color:var(--danger-color);">0</p></div>
             <div class="dash-card"><h3>Pending Tasks</h3><p class="count" id="dash-pending-tasks" style="color:var(--accent);">0</p></div>
-            <div class="dash-card"><h3>Total Tasks</h3><p class="count" id="dash-total-tasks" style="color:#10b981;">0</p></div>
-            <div class="dash-card"><h3>Total Withdrawals</h3><p class="count" id="dash-total-withdrawals" style="color:#818cf8;">0</p></div>
         </div>
     </div>
 
@@ -292,14 +290,16 @@
 
     <!-- ══ ALL TASKS MANAGE ══ -->
     <div id="all-tasks" class="admin-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
             <h2>📋 All Tasks</h2>
             <div style="display:flex; gap:8px;">
-                <button onclick="loadAllTasks('all')" class="btn btn-gold" style="flex:0; padding:7px 14px;">All</button>
-                <button onclick="loadAllTasks('pending')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#f59e0b;">Pending</button>
-                <button onclick="loadAllTasks('approved')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#10b981;">Live</button>
+                <button onclick="loadAllTasks('all')" id="taskFilter-all" class="btn btn-gold" style="flex:0; padding:7px 14px;">All</button>
+                <button onclick="loadAllTasks('pending')" id="taskFilter-pending" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#f59e0b;">Pending</button>
+                <button onclick="loadAllTasks('approved')" id="taskFilter-approved" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#10b981;">Live</button>
             </div>
         </div>
+        <!-- Task Stats Summary Bar -->
+        <div id="task-stats-bar" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px;"></div>
         <div id="all-tasks-list" class="grid-list"></div>
     </div>
 
@@ -615,18 +615,14 @@ document.getElementById('createAdminTaskForm').addEventListener('submit', async 
 // ── DASHBOARD OVERVIEW ──
 async function loadDashboard() {
     try {
-        const [uSnap, wSnap, tSnap, totalTasksSnap, totalWdSnap] = await Promise.all([
+        const [uSnap, wSnap, tSnap] = await Promise.all([
             getCountFromServer(collection(db,'users')),
             getCountFromServer(query(collection(db,'withdrawals'), where('status','==','pending'))),
-            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false))),
-            getCountFromServer(collection(db,'tasks')),
-            getCountFromServer(collection(db,'withdrawals')),
+            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false)))
         ]);
         document.getElementById('dash-total-users').textContent = uSnap.data().count;
         document.getElementById('dash-pending-withdrawals').textContent = wSnap.data().count;
         document.getElementById('dash-pending-tasks').textContent = tSnap.data().count;
-        document.getElementById('dash-total-tasks').textContent = totalTasksSnap.data().count;
-        document.getElementById('dash-total-withdrawals').textContent = totalWdSnap.data().count;
 
         const pCount = wSnap.data().count;
         document.getElementById('nav-pending-count').textContent = pCount;
@@ -1394,21 +1390,83 @@ window.toggleBan  = async (uid, cur) => {
 // ── ALL TASKS MANAGEMENT ──
 window.loadAllTasks = async (filter='all') => {
     const list = document.getElementById('all-tasks-list');
+    const statsBar = document.getElementById('task-stats-bar');
     list.innerHTML = '<div class="loader"></div>';
-    try {
-        let q = collection(db, 'tasks');
-        let snap;
-        if(filter === 'approved'){
-            snap = await getDocs(query(q, where('isApproved','==',true), limit(50)));
-        } else if(filter === 'pending'){
-            snap = await getDocs(query(q, where('isApproved','==',false), limit(50)));
+    if(statsBar) statsBar.innerHTML = '';
+
+    // Update filter button styles
+    ['all','pending','approved'].forEach(f => {
+        const btn = document.getElementById('taskFilter-' + f);
+        if(!btn) return;
+        if(f === filter){
+            btn.style.background = 'var(--warning-color)';
+            btn.style.color = '#000';
         } else {
-            snap = await getDocs(query(q, limit(100)));
+            btn.style.background = '#333';
+            btn.style.color = f === 'approved' ? '#10b981' : f === 'pending' ? '#f59e0b' : '#aaa';
         }
+    });
+
+    try {
+        // Always fetch ALL tasks for stats (regardless of filter)
+        const allSnap = await getDocs(query(collection(db, 'tasks'), limit(200)));
+        const allTasks = [];
+        allSnap.forEach(d => allTasks.push({ id: d.id, ...d.data() }));
+
+        // ── Stats bar ──
+        if(statsBar){
+            const total    = allTasks.length;
+            const live     = allTasks.filter(t => t.isApproved).length;
+            const pending  = allTasks.filter(t => !t.isApproved).length;
+            const catCount = {};
+            allTasks.forEach(t => {
+                const c = t.category || 'other';
+                catCount[c] = (catCount[c]||0) + 1;
+            });
+            const catIcons = {
+                telegram_channel:'📢', telegram_group:'👥',
+                social:'🌐', telegram_bot:'🤖', other:'📌'
+            };
+            const catColors = {
+                telegram_channel:'#0ea5e9', telegram_group:'#6366f1',
+                social:'#10b981', telegram_bot:'#f59e0b', other:'#94a3b8'
+            };
+
+            let html = `
+                <div style="background:var(--bg-card);border:1.5px solid var(--border-color);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">${total}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">Total Tasks</div>
+                </div>
+                <div style="background:var(--bg-card);border:1.5px solid rgba(16,185,129,0.4);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:1.6rem;font-weight:800;color:#10b981;">${live}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">✅ Live</div>
+                </div>
+                <div style="background:var(--bg-card);border:1.5px solid rgba(245,158,11,0.4);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:1.6rem;font-weight:800;color:#f59e0b;">${pending}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">⏳ Pending</div>
+                </div>`;
+
+            Object.entries(catCount).sort((a,b)=>b[1]-a[1]).forEach(([cat, count]) => {
+                const icon  = catIcons[cat]  || '📌';
+                const color = catColors[cat] || '#94a3b8';
+                html += `
+                <div style="background:var(--bg-card);border:1.5px solid ${color}33;border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:1.3rem;font-weight:800;color:${color};">${icon} ${count}</div>
+                    <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">${cat.replace('_',' ')}</div>
+                </div>`;
+            });
+            statsBar.innerHTML = html;
+        }
+
+        // ── Filter tasks for display ──
+        const filtered = filter === 'approved' ? allTasks.filter(t => t.isApproved)
+                       : filter === 'pending'  ? allTasks.filter(t => !t.isApproved)
+                       : allTasks;
+
         list.innerHTML = '';
-        if(snap.empty){ list.innerHTML = '<p style="color:#666;text-align:center;">No tasks found.</p>'; return; }
-        snap.forEach(d => {
-            const t = d.data();
+        if(!filtered.length){ list.innerHTML = '<p style="color:#666;text-align:center;padding:30px;">No tasks found.</p>'; return; }
+
+        filtered.forEach(t => {
             const isApproved = t.isApproved || false;
             const pct = t.maxCompletions > 0 ? Math.min(100, Math.round((t.completionCount||0)/t.maxCompletions*100)) : 0;
             const div = document.createElement('div'); div.className = 'card-item';
@@ -1416,23 +1474,23 @@ window.loadAllTasks = async (filter='all') => {
                 <div class="card-header">
                     <div>
                         <h3 style="margin:0;font-size:0.95em;color:#fff;">${t.title||'No Title'}</h3>
-                        <span style="font-size:0.72em;color:#aaa;">${t.category||'social'} · Created by: ${t.createdBy||'admin'}</span>
+                        <span style="font-size:0.72em;color:#aaa;">${t.category||'social'} · by: ${t.createdBy||'admin'}</span>
                     </div>
                     <span style="background:${isApproved?'#10b981':'#f59e0b'};color:#000;padding:2px 8px;font-size:0.72em;border-radius:6px;font-weight:700;">${isApproved?'LIVE':'PENDING'}</span>
                 </div>
                 <div class="card-stats">
                     <div class="stat-row"><span>URL:</span><span class="stat-val" style="font-size:0.78em;word-break:break-all;"><a href="${t.url||'#'}" target="_blank" style="color:#60a5fa;">${(t.url||'').substring(0,40)}...</a></span></div>
                     <div class="stat-row"><span>Progress:</span><span class="stat-val">${t.completionCount||0} / ${t.maxCompletions||0} (${pct}%)</span></div>
-                    <div class="stat-row"><span>Reward:</span><span class="stat-val">${t.rewardDiamond||1} 💎 per completion</span></div>
+                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--diamond);">${t.rewardDiamond||1} 💎 per completion</span></div>
                     <div class="stat-row"><span>Cost:</span><span class="stat-val">${t.tonCost||0} TON</span></div>
                 </div>
                 <div style="height:6px;background:#333;border-radius:4px;margin:8px 0;overflow:hidden;">
                     <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#6366f1,#06b6d4);border-radius:4px;"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
-                    <button class="btn" style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;" onclick="editTask('${d.id}')">✏️ Edit</button>
-                    <button class="btn ${isApproved?'':'btn-gold'}" style="font-size:0.8rem;" onclick="toggleTaskApproval('${d.id}',${isApproved})">${isApproved?'⏸ Pause':'✅ Approve'}</button>
-                    <button class="btn btn-reject" style="font-size:0.8rem;" onclick="deleteTask('${d.id}','${t.title||''}')">🗑 Delete</button>
+                    <button class="btn" style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;" onclick="editTask('${t.id}')">✏️ Edit</button>
+                    <button class="btn ${isApproved?'':'btn-gold'}" style="font-size:0.8rem;" onclick="toggleTaskApproval('${t.id}',${isApproved})">${isApproved?'⏸ Pause':'✅ Approve'}</button>
+                    <button class="btn btn-reject" style="font-size:0.8rem;" onclick="deleteTask('${t.id}','${(t.title||'').replace(/'/g,"\\'")}')">🗑 Delete</button>
                 </div>`;
             list.appendChild(div);
         });
@@ -1441,23 +1499,80 @@ window.loadAllTasks = async (filter='all') => {
 
 window.editTask = async (taskId) => {
     const snap = await getDoc(doc(db,'tasks',taskId));
-    if(!snap.exists()) return alert('Task not found');
+    if(!snap.exists()) return showAdminToast('❌ Task not found');
     const t = snap.data();
-    const newTitle = prompt('Edit Title:', t.title||'');
-    if(newTitle === null) return;
-    const newReward = prompt('Reward Diamond per completion (default 0.5):', t.rewardDiamond||0.5);
-    if(newReward === null) return;
-    const newMax = prompt('Max completions:', t.maxCompletions||100);
-    if(newMax === null) return;
+
+    // Remove any existing edit modal
+    const existing = document.getElementById('edit-task-modal');
+    if(existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'edit-task-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+        <div style="background:#1e293b;border:1.5px solid var(--primary);border-radius:18px;padding:26px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                <h3 style="color:var(--primary);font-size:1.05rem;">✏️ Edit Task</h3>
+                <button onclick="document.getElementById('edit-task-modal').remove()" style="background:#334155;border:none;color:#aaa;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:0.9rem;">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Task Title</label>
+                <input type="text" id="et-title" value="${(t.title||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
+            </div>
+            <div class="form-group">
+                <label>💎 Reward Diamond per completion</label>
+                <input type="number" id="et-reward" value="${t.rewardDiamond||1}" min="0.1" step="0.1" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
+                <small style="color:#94a3b8;font-size:0.75em;margin-top:4px;display:block;">Current: <b style="color:var(--diamond);">${t.rewardDiamond||1} 💎</b></small>
+            </div>
+            <div class="form-group">
+                <label>Max Completions (0 = Unlimited)</label>
+                <input type="number" id="et-maxcomp" value="${t.maxCompletions||100}" min="0" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
+            </div>
+            <div class="form-group">
+                <label>Target URL</label>
+                <input type="text" id="et-url" value="${(t.url||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
+            </div>
+            <p id="et-msg" style="font-size:0.82rem;text-align:center;min-height:20px;margin-bottom:8px;"></p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <button onclick="document.getElementById('edit-task-modal').remove()" style="padding:11px;background:#334155;border:none;color:#aaa;border-radius:10px;cursor:pointer;font-weight:700;">Cancel</button>
+                <button id="et-save-btn" onclick="saveEditTask('${taskId}')" style="padding:11px;background:linear-gradient(135deg,var(--primary),var(--accent));border:none;color:white;border-radius:10px;cursor:pointer;font-weight:800;">💾 Save Changes</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    // Focus reward field
+    document.getElementById('et-reward').focus();
+};
+
+window.saveEditTask = async (taskId) => {
+    const msg = document.getElementById('et-msg');
+    const btn = document.getElementById('et-save-btn');
+    const title    = document.getElementById('et-title').value.trim();
+    const reward   = parseFloat(document.getElementById('et-reward').value);
+    const maxComp  = parseInt(document.getElementById('et-maxcomp').value);
+    const url      = document.getElementById('et-url').value.trim();
+
+    if(!title)        { msg.style.color='var(--danger-color)'; msg.textContent='❌ Title cannot be empty.'; return; }
+    if(isNaN(reward)||reward<=0) { msg.style.color='var(--danger-color)'; msg.textContent='❌ Invalid reward amount.'; return; }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Saving...';
     try {
         await updateDoc(doc(db,'tasks',taskId), {
-            title: newTitle.trim(),
-            rewardDiamond: parseFloat(newReward)||0.5,
-            maxCompletions: parseInt(newMax)||100,
+            title,
+            rewardDiamond: reward,
+            rewardPoints:  reward,
+            maxCompletions: isNaN(maxComp) ? 100 : maxComp,
+            url,
         });
-        showAdminToast('✅ Task updated!');
+        showAdminToast('✅ Task updated successfully!');
+        document.getElementById('edit-task-modal').remove();
         loadAllTasks('all');
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) {
+        msg.style.color = 'var(--danger-color)';
+        msg.textContent = '❌ Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '💾 Save Changes';
+    }
 };
 
 window.toggleTaskApproval = async (taskId, currentStatus) => {
