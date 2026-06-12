@@ -165,6 +165,8 @@
             <div class="dash-card"><h3>Daily Joined</h3><p class="count" id="dash-daily-users">0</p></div>
             <div class="dash-card"><h3>Pending Withdraw</h3><p class="count" id="dash-pending-withdrawals" style="color:var(--danger-color);">0</p></div>
             <div class="dash-card"><h3>Pending Tasks</h3><p class="count" id="dash-pending-tasks" style="color:var(--accent);">0</p></div>
+            <div class="dash-card"><h3>Total Tasks</h3><p class="count" id="dash-total-tasks" style="color:#10b981;">0</p></div>
+            <div class="dash-card"><h3>Total Withdrawals</h3><p class="count" id="dash-total-withdrawals" style="color:#818cf8;">0</p></div>
         </div>
     </div>
 
@@ -613,14 +615,18 @@ document.getElementById('createAdminTaskForm').addEventListener('submit', async 
 // ── DASHBOARD OVERVIEW ──
 async function loadDashboard() {
     try {
-        const [uSnap, wSnap, tSnap] = await Promise.all([
+        const [uSnap, wSnap, tSnap, totalTasksSnap, totalWdSnap] = await Promise.all([
             getCountFromServer(collection(db,'users')),
             getCountFromServer(query(collection(db,'withdrawals'), where('status','==','pending'))),
-            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false)))
+            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false))),
+            getCountFromServer(collection(db,'tasks')),
+            getCountFromServer(collection(db,'withdrawals')),
         ]);
         document.getElementById('dash-total-users').textContent = uSnap.data().count;
         document.getElementById('dash-pending-withdrawals').textContent = wSnap.data().count;
         document.getElementById('dash-pending-tasks').textContent = tSnap.data().count;
+        document.getElementById('dash-total-tasks').textContent = totalTasksSnap.data().count;
+        document.getElementById('dash-total-withdrawals').textContent = totalWdSnap.data().count;
 
         const pCount = wSnap.data().count;
         document.getElementById('nav-pending-count').textContent = pCount;
@@ -1439,14 +1445,14 @@ window.editTask = async (taskId) => {
     const t = snap.data();
     const newTitle = prompt('Edit Title:', t.title||'');
     if(newTitle === null) return;
-    const newReward = prompt('Reward Diamond per completion:', t.rewardDiamond||1);
+    const newReward = prompt('Reward Diamond per completion (default 0.5):', t.rewardDiamond||0.5);
     if(newReward === null) return;
     const newMax = prompt('Max completions:', t.maxCompletions||100);
     if(newMax === null) return;
     try {
         await updateDoc(doc(db,'tasks',taskId), {
             title: newTitle.trim(),
-            rewardDiamond: parseFloat(newReward)||1,
+            rewardDiamond: parseFloat(newReward)||0.5,
             maxCompletions: parseInt(newMax)||100,
         });
         showAdminToast('✅ Task updated!');
