@@ -215,8 +215,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label>💎 Reward Diamonds</label>
-                    <input type="number" id="admin-t-reward" value="2" min="0.1" step="0.1" required>
+                    <label>💎 Reward TP (per completion)</label>
+                    <input type="number" id="admin-t-reward" value="10" min="1" step="1" required>
                 </div>
                 <div class="form-group">
                     <label>Max Completions limit (0 = Unlimited)</label>
@@ -290,16 +290,14 @@
 
     <!-- ══ ALL TASKS MANAGE ══ -->
     <div id="all-tasks" class="admin-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
             <h2>📋 All Tasks</h2>
             <div style="display:flex; gap:8px;">
-                <button onclick="loadAllTasks('all')" id="taskFilter-all" class="btn btn-gold" style="flex:0; padding:7px 14px;">All</button>
-                <button onclick="loadAllTasks('pending')" id="taskFilter-pending" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#f59e0b;">Pending</button>
-                <button onclick="loadAllTasks('approved')" id="taskFilter-approved" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#10b981;">Live</button>
+                <button onclick="loadAllTasks('all')" class="btn btn-gold" style="flex:0; padding:7px 14px;">All</button>
+                <button onclick="loadAllTasks('pending')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#f59e0b;">Pending</button>
+                <button onclick="loadAllTasks('approved')" class="btn" style="flex:0; padding:7px 14px; background:#333; color:#10b981;">Live</button>
             </div>
         </div>
-        <!-- Task Stats Summary Bar -->
-        <div id="task-stats-bar" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px;"></div>
         <div id="all-tasks-list" class="grid-list"></div>
     </div>
 
@@ -325,7 +323,7 @@
         <div style="background:var(--bg-card); padding:22px; border-radius:16px; text-align:center; max-width:440px; margin:0 auto 24px; border:1.5px solid #c084fc;">
             <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px; flex-wrap:wrap;">
                 <select id="rewardType" style="background:#111827; color:white; border:1px solid var(--border-color); padding:8px; border-radius:8px;">
-                    <option value="diamond">Diamond 💎</option>
+                    <option value="diamond">TP 💎</option>
                     <option value="ton">TON 💰</option>
                 </select>
                 <input type="number" id="spinPoint" value="50" placeholder="Amount" style="width:100px; padding:8px; background:#111827; color:white; border:1px solid var(--border-color); border-radius:8px;">
@@ -345,7 +343,7 @@
 
             <!-- Ad Rewards -->
             <div class="settings-card">
-                <h3>📺 Ad Rewards (Diamond per ad)</h3>
+                <h3>📺 Ad Rewards (TP per ad)</h3>
                 <div class="form-group"><label>Adsgram Daily (per ad)</label><input type="number" step="0.01" id="cfg-adsgram-daily" value="0.25"></div>
                 <div class="form-group"><label>Adsgram Special (per ad)</label><input type="number" step="0.01" id="cfg-adsgram-special" value="0.50"></div>
                 <div class="form-group"><label>Monetag (per ad)</label><input type="number" step="0.01" id="cfg-monetag" value="0.25"></div>
@@ -355,17 +353,17 @@
 
             <!-- Task Reward -->
             <div class="settings-card">
-                <h3>✅ Core Task Reward (Diamond)</h3>
-                <div class="form-group"><label>Default Task Reward (Diamond)</label><input type="number" id="cfg-task-reward" value="2"></div>
-                <div class="form-group"><label>Referral Bonus (Diamond)</label><input type="number" id="cfg-ref-reward" value="5"></div>
+                <h3>✅ Core Task Reward (TP)</h3>
+                <div class="form-group"><label>Default Task Reward (TP)</label><input type="number" id="cfg-task-reward" value="10"></div>
+                <div class="form-group"><label>Referral Bonus (TP)</label><input type="number" id="cfg-ref-reward" value="100"></div>
                 <button class="submit-btn" onclick="saveTaskRewards()">💾 Save Task Rewards</button>
             </div>
 
             <!-- Withdraw Limits -->
             <div class="settings-card">
-                <h3>💸 Withdraw Minimums (Diamonds)</h3>
-                <div class="form-group"><label>Binance (min Diamond)</label><input type="number" id="cfg-wd-binance" value="100"></div>
-                <div class="form-group"><label>Tonkeeper (min Diamond)</label><input type="number" id="cfg-wd-ton" value="50"></div>
+                <h3>💸 Withdraw Minimums (TP)</h3>
+                <div class="form-group"><label>Binance (min TP)</label><input type="number" id="cfg-wd-binance" value="1000"></div>
+                <div class="form-group"><label>Tonkeeper (min TP)</label><input type="number" id="cfg-wd-ton" value="300"></div>
                 <button class="submit-btn" onclick="saveWithdrawConfig()">💾 Save Withdraw Config</button>
             </div>
 
@@ -696,9 +694,9 @@ async function loadWithdrawals(filter = 'pending') {
 
             const dAmt = wd.diamondAmount || 0;
             let convertedStr = '';
-            if (wd.method === 'binance')   convertedStr = `≈ ${(dAmt/1000).toFixed(4)} USDT  (1K💎=$1)`;
-            if (wd.method === 'tonkeeper') convertedStr = `≈ ${(dAmt*0.0005).toFixed(4)} TON  (1K💎=0.5TON)`;
-            if (wd.method === 'bkash')     convertedStr = `≈ ৳${(dAmt*0.12).toFixed(2)} BDT  (1K💎=120৳)`;
+            if (wd.method === 'binance')   convertedStr = `≈ ${(dAmt/10000).toFixed(4)} USDT  (10K TP=$1)`;
+            if (wd.method === 'tonkeeper') convertedStr = `≈ ${(dAmt*0.00005).toFixed(4)} TON  (10K TP=0.5TON)`;
+            // bKash removed
 
             let dateStr = '-';
             try {
@@ -720,7 +718,7 @@ async function loadWithdrawals(filter = 'pending') {
                 <div class="card-stats">
                     <div class="stat-row"><span>📅 Date:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dateStr}</span></div>
                     <div class="stat-row"><span>💳 Method:</span><span class="stat-val" style="color:var(--diamond);">${(wd.method||'N/A').toUpperCase()}</span></div>
-                    <div class="stat-row"><span>💎 Withdraw Amount:</span><span class="stat-val" style="color:var(--diamond); font-size:1.1em; font-weight:900;">${dAmt} 💎</span></div>
+                    <div class="stat-row"><span>💎 Withdraw Amount:</span><span class="stat-val" style="color:var(--diamond); font-size:1.1em; font-weight:900;">${dAmt} TP</span></div>
                     <div class="stat-row"><span>💰 Converted Value:</span><span class="stat-val" style="color:var(--success-color);">${convertedStr || 'N/A'}</span></div>
                     <div class="stat-row"><span>📋 Wallet / Address:</span>
                         <div class="wallet-box"><span class="wallet-addr">${walletAddr}</span>
@@ -736,7 +734,7 @@ async function loadWithdrawals(filter = 'pending') {
                     <div class="stat-row"><span style="color:#94a3b8;">Total Refers</span><span class="stat-val">${userInfo.totalInvites||0}</span></div>
                     <div class="stat-row"><span style="color:#94a3b8;">Valid Refers</span><span class="stat-val" style="color:#10b981;">${userInfo.validReferrals||0}</span></div>
                     <div class="stat-row"><span style="color:#94a3b8;">Ads Watched Today</span><span class="stat-val" style="color:#f59e0b;">${userInfo.adsWatched||0}</span></div>
-                    <div class="stat-row"><span style="color:#94a3b8;">💎 Diamond Balance</span><span class="stat-val" style="color:#06b6d4;">${(userInfo.diamondBalance||0).toFixed(2)} 💎</span></div>
+                    <div class="stat-row"><span style="color:#94a3b8;">💎 TP Balance</span><span class="stat-val" style="color:#06b6d4;">${Math.floor(userInfo.diamondBalance||0)} TP</span></div>
                     ${wd.method === 'tonkeeper' ? `<div class="stat-row"><span style="color:#94a3b8;">💰 TON Balance</span><span class="stat-val" style="color:#60a5fa;">${(userInfo.tonBalance||0).toFixed(4)} TON</span></div>` : ''}
                 </div>
 
@@ -774,7 +772,7 @@ async function loadPendingTasks(approved = false) {
                 <div class="card-stats">
                     <div class="stat-row"><span>Category:</span><span class="stat-val" style="color:var(--accent);">${t.category?.toUpperCase() || 'SOCIAL'}</span></div>
                     <div class="stat-row"><span>Completions Needed:</span><span class="stat-val">${t.maxCompletions || 0}</span></div>
-                    <div class="stat-row"><span>Reward Diamonds:</span><span class="stat-val" style="color:var(--diamond);">${t.rewardDiamond || 0} 💎</span></div>
+                    <div class="stat-row"><span>Reward TPs:</span><span class="stat-val" style="color:var(--diamond);">${t.rewardDiamond || 0} TP</span></div>
                     <div class="stat-row"><span>Link / URL:</span><span class="stat-val" style="font-size:0.8em; color:var(--accent); word-break:break-all;">${t.url || ''}</span></div>
                     ${t.channelId ? `<div class="stat-row"><span>Channel Username:</span><span class="stat-val">${t.channelId}</span></div>` : ''}
                 </div>
@@ -830,14 +828,14 @@ async function loadUsers(searchVal = '') {
                     </div>
                 </div>
                 <div class="card-stats">
-                    <div class="stat-row"><span>💎 Diamond:</span><span class="stat-val" style="color:var(--diamond);">${Math.floor(u.diamondBalance||0).toLocaleString()} 💎</span></div>
+                    <div class="stat-row"><span>💎 TP:</span><span class="stat-val" style="color:var(--diamond);">${Math.floor(u.diamondBalance||0).toLocaleString()} TP</span></div>
                     <div class="stat-row"><span>💰 TON Balance:</span><span class="stat-val" style="color:#60a5fa;">${(u.tonBalance||0).toFixed(4)} TON</span></div>
                     <div class="stat-row"><span>✅ Tasks Done:</span><span class="stat-val">${(u.completedTasks||[]).length}</span></div>
                     <div class="stat-row"><span>👥 Invites:</span><span class="stat-val">${u.totalInvites||0} (Valid: ${u.validReferrals||0})</span></div>
                     ${depWarn > 0 ? `<div class="stat-row"><span>⚠️ Fake Deposit Warns:</span><span class="stat-val" style="color:${depBanned?'#ef4444':'#f59e0b'};font-weight:800;">${depBanned ? '🚫 Permanently Banned' : depWarn + '/3 warnings'}</span></div>` : ''}
                 </div>
                 <div class="card-actions" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                    <button class="btn btn-diamond" onclick="editBalance('${d.id}','diamond')">💎 Send Diamond</button>
+                    <button class="btn btn-diamond" onclick="editBalance('${d.id}','diamond')">💎 Send TP</button>
                     <button class="btn" style="background:#1d4ed8;color:#fff;" onclick="editBalance('${d.id}','ton')">💰 Send TON</button>
                 </div>
                 <div class="card-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
@@ -868,7 +866,7 @@ async function loadPromoCodes() {
                     ${isExpired ? '<span style="color:var(--danger-color); font-size:0.8em;">EXPIRED</span>' : '<span style="color:var(--success-color); font-size:0.8em;">ACTIVE</span>'}
                 </div>
                 <div class="card-stats">
-                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--primary);">${p.rewardAmount} ${p.rewardType==='ton'?'💰 TON':'💎 Diamond'}</span></div>
+                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--primary);">${p.rewardAmount} ${p.rewardType==='ton'?'💰 TON':'💎 TP'}</span></div>
                     <div class="stat-row"><span>Claims:</span><span class="stat-val">${p.currentUses}/${p.maxUses}</span></div>
                     <div class="stat-row"><span>Expires:</span><span class="stat-val" style="font-size:0.8em; color:#aaa;">${p.expiresAt ? p.expiresAt.toDate().toLocaleString() : 'N/A'}</span></div>
                 </div>
@@ -899,14 +897,14 @@ document.getElementById('spinBtn').addEventListener('click', async () => {
 window.broadcastPromoToUsers = async (code, amount) => {
     const botToken = getGlobalBotToken() || prompt('Enter Bot Token:');
     if (!botToken) return;
-    if (!confirm(`Broadcast promo code "${code}" (+${amount} Diamonds) to all users?`)) return;
+    if (!confirm(`Broadcast promo code "${code}" (+${amount} TPs) to all users?`)) return;
 
     const message =
 `🎁 <b>Exclusive Promo Code!</b>
 
-🎉 Grab free Diamonds!
+🎉 Grab free TP!
 
-💰 Reward: <b>+${parseInt(amount).toLocaleString()} 💎 Diamond</b>
+💰 Reward: <b>+${parseInt(amount).toLocaleString()} 💎 TP</b>
 🔑 Code: <code>${code}</code>
 
 👇 Open the mini-app and enter the code to redeem.`;
@@ -997,22 +995,22 @@ window.loadLiveConfig = async () => {
         if (adSnap.exists()) {
             const a = adSnap.data();
             html += `<div style="margin-bottom:10px;"><b style="color:var(--primary); font-size:0.82em;">📺 Ad Rewards</b>
-                <div class="reward-row"><span class="reward-label">Daily Adsgram</span><span class="reward-val">${a.adsgramDaily} 💎</span></div>
-                <div class="reward-row"><span class="reward-label">Special Adsgram</span><span class="reward-val">${a.adsgramSpecial} 💎</span></div>
-                <div class="reward-row"><span class="reward-label">Monetag</span><span class="reward-val">${a.monetag} 💎</span></div>
-                <div class="reward-row"><span class="reward-label">GigaPub</span><span class="reward-val">${a.giga} 💎</span></div></div>`;
+                <div class="reward-row"><span class="reward-label">Daily Adsgram</span><span class="reward-val">${a.adsgramDaily} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Special Adsgram</span><span class="reward-val">${a.adsgramSpecial} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Monetag</span><span class="reward-val">${a.monetag} TP</span></div>
+                <div class="reward-row"><span class="reward-label">GigaPub</span><span class="reward-val">${a.giga} TP</span></div></div>`;
         }
         if (taskSnap.exists()) {
             const t = taskSnap.data();
             html += `<div style="margin-bottom:10px;"><b style="color:var(--primary); font-size:0.82em;">✅ Task Rewards</b>
-                <div class="reward-row"><span class="reward-label">Per Task Reward</span><span class="reward-val">${t.defaultTaskReward} 💎</span></div>
-                <div class="reward-row"><span class="reward-label">Referral Bonus</span><span class="reward-val">${t.referralReward} 💎</span></div></div>`;
+                <div class="reward-row"><span class="reward-label">Per Task Reward</span><span class="reward-val">${t.defaultTaskReward} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Referral Bonus</span><span class="reward-val">${t.referralReward} TP</span></div></div>`;
         }
         if (wdSnap.exists()) {
             const w = wdSnap.data();
             html += `<div><b style="color:var(--primary); font-size:0.82em;">💸 Minimum Limits</b>
-                <div class="reward-row"><span class="reward-label">Binance UID</span><span class="reward-val" style="color:var(--diamond);">${w.minBinance} 💎</span></div>
-                <div class="reward-row"><span class="reward-label">Tonkeeper</span><span class="reward-val" style="color:var(--diamond);">${w.minTonkeeper} 💎</span></div></div>`;
+                <div class="reward-row"><span class="reward-label">Binance UID</span><span class="reward-val" style="color:var(--diamond);">${w.minBinance} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Tonkeeper</span><span class="reward-val" style="color:var(--diamond);">${w.minTonkeeper} TP</span></div></div>`;
         }
         if (!html) html = '<p style="color:#666; font-size:0.85em;">No active Firestore configuration detected.</p>';
         el.innerHTML = html;
@@ -1351,7 +1349,7 @@ window.loadDepositSentHistory = async () => {
                 </div>
                 <div class="card-stats">
                     <div class="stat-row"><span>💰 TON Sent:</span><span class="stat-val" style="color:#60a5fa; font-size:1.05em; font-weight:800;">${dep.tonAmount} TON</span></div>
-                    <div class="stat-row"><span>💎 Diamond Equiv:</span><span class="stat-val" style="color:var(--diamond);">~${dep.diamondEquiv} 💎</span></div>
+                    <div class="stat-row"><span>💎 TP Equiv:</span><span class="stat-val" style="color:var(--diamond);">~${dep.diamondEquiv} 💎</span></div>
                     <div class="stat-row"><span>📝 Note:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dep.note || '-'}</span></div>
                     <div class="stat-row"><span>👤 Sent By:</span><span class="stat-val" style="color:#aaa; font-size:0.78em;">${dep.sentBy || 'admin'}</span></div>
                 </div>`;
@@ -1390,83 +1388,21 @@ window.toggleBan  = async (uid, cur) => {
 // ── ALL TASKS MANAGEMENT ──
 window.loadAllTasks = async (filter='all') => {
     const list = document.getElementById('all-tasks-list');
-    const statsBar = document.getElementById('task-stats-bar');
     list.innerHTML = '<div class="loader"></div>';
-    if(statsBar) statsBar.innerHTML = '';
-
-    // Update filter button styles
-    ['all','pending','approved'].forEach(f => {
-        const btn = document.getElementById('taskFilter-' + f);
-        if(!btn) return;
-        if(f === filter){
-            btn.style.background = 'var(--warning-color)';
-            btn.style.color = '#000';
-        } else {
-            btn.style.background = '#333';
-            btn.style.color = f === 'approved' ? '#10b981' : f === 'pending' ? '#f59e0b' : '#aaa';
-        }
-    });
-
     try {
-        // Always fetch ALL tasks for stats (regardless of filter)
-        const allSnap = await getDocs(query(collection(db, 'tasks'), limit(200)));
-        const allTasks = [];
-        allSnap.forEach(d => allTasks.push({ id: d.id, ...d.data() }));
-
-        // ── Stats bar ──
-        if(statsBar){
-            const total    = allTasks.length;
-            const live     = allTasks.filter(t => t.isApproved).length;
-            const pending  = allTasks.filter(t => !t.isApproved).length;
-            const catCount = {};
-            allTasks.forEach(t => {
-                const c = t.category || 'other';
-                catCount[c] = (catCount[c]||0) + 1;
-            });
-            const catIcons = {
-                telegram_channel:'📢', telegram_group:'👥',
-                social:'🌐', telegram_bot:'🤖', other:'📌'
-            };
-            const catColors = {
-                telegram_channel:'#0ea5e9', telegram_group:'#6366f1',
-                social:'#10b981', telegram_bot:'#f59e0b', other:'#94a3b8'
-            };
-
-            let html = `
-                <div style="background:var(--bg-card);border:1.5px solid var(--border-color);border-radius:12px;padding:14px;text-align:center;">
-                    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">${total}</div>
-                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">Total Tasks</div>
-                </div>
-                <div style="background:var(--bg-card);border:1.5px solid rgba(16,185,129,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <div style="font-size:1.6rem;font-weight:800;color:#10b981;">${live}</div>
-                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">✅ Live</div>
-                </div>
-                <div style="background:var(--bg-card);border:1.5px solid rgba(245,158,11,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <div style="font-size:1.6rem;font-weight:800;color:#f59e0b;">${pending}</div>
-                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">⏳ Pending</div>
-                </div>`;
-
-            Object.entries(catCount).sort((a,b)=>b[1]-a[1]).forEach(([cat, count]) => {
-                const icon  = catIcons[cat]  || '📌';
-                const color = catColors[cat] || '#94a3b8';
-                html += `
-                <div style="background:var(--bg-card);border:1.5px solid ${color}33;border-radius:12px;padding:14px;text-align:center;">
-                    <div style="font-size:1.3rem;font-weight:800;color:${color};">${icon} ${count}</div>
-                    <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;">${cat.replace('_',' ')}</div>
-                </div>`;
-            });
-            statsBar.innerHTML = html;
+        let q = collection(db, 'tasks');
+        let snap;
+        if(filter === 'approved'){
+            snap = await getDocs(query(q, where('isApproved','==',true), limit(50)));
+        } else if(filter === 'pending'){
+            snap = await getDocs(query(q, where('isApproved','==',false), limit(50)));
+        } else {
+            snap = await getDocs(query(q, limit(100)));
         }
-
-        // ── Filter tasks for display ──
-        const filtered = filter === 'approved' ? allTasks.filter(t => t.isApproved)
-                       : filter === 'pending'  ? allTasks.filter(t => !t.isApproved)
-                       : allTasks;
-
         list.innerHTML = '';
-        if(!filtered.length){ list.innerHTML = '<p style="color:#666;text-align:center;padding:30px;">No tasks found.</p>'; return; }
-
-        filtered.forEach(t => {
+        if(snap.empty){ list.innerHTML = '<p style="color:#666;text-align:center;">No tasks found.</p>'; return; }
+        snap.forEach(d => {
+            const t = d.data();
             const isApproved = t.isApproved || false;
             const pct = t.maxCompletions > 0 ? Math.min(100, Math.round((t.completionCount||0)/t.maxCompletions*100)) : 0;
             const div = document.createElement('div'); div.className = 'card-item';
@@ -1474,23 +1410,23 @@ window.loadAllTasks = async (filter='all') => {
                 <div class="card-header">
                     <div>
                         <h3 style="margin:0;font-size:0.95em;color:#fff;">${t.title||'No Title'}</h3>
-                        <span style="font-size:0.72em;color:#aaa;">${t.category||'social'} · by: ${t.createdBy||'admin'}</span>
+                        <span style="font-size:0.72em;color:#aaa;">${t.category||'social'} · Created by: ${t.createdBy||'admin'}</span>
                     </div>
                     <span style="background:${isApproved?'#10b981':'#f59e0b'};color:#000;padding:2px 8px;font-size:0.72em;border-radius:6px;font-weight:700;">${isApproved?'LIVE':'PENDING'}</span>
                 </div>
                 <div class="card-stats">
                     <div class="stat-row"><span>URL:</span><span class="stat-val" style="font-size:0.78em;word-break:break-all;"><a href="${t.url||'#'}" target="_blank" style="color:#60a5fa;">${(t.url||'').substring(0,40)}...</a></span></div>
                     <div class="stat-row"><span>Progress:</span><span class="stat-val">${t.completionCount||0} / ${t.maxCompletions||0} (${pct}%)</span></div>
-                    <div class="stat-row"><span>Reward:</span><span class="stat-val" style="color:var(--diamond);">${t.rewardDiamond||1} 💎 per completion</span></div>
+                    <div class="stat-row"><span>Reward:</span><span class="stat-val">${t.rewardDiamond||1} 💎 per completion</span></div>
                     <div class="stat-row"><span>Cost:</span><span class="stat-val">${t.tonCost||0} TON</span></div>
                 </div>
                 <div style="height:6px;background:#333;border-radius:4px;margin:8px 0;overflow:hidden;">
                     <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#6366f1,#06b6d4);border-radius:4px;"></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
-                    <button class="btn" style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;" onclick="editTask('${t.id}')">✏️ Edit</button>
-                    <button class="btn ${isApproved?'':'btn-gold'}" style="font-size:0.8rem;" onclick="toggleTaskApproval('${t.id}',${isApproved})">${isApproved?'⏸ Pause':'✅ Approve'}</button>
-                    <button class="btn btn-reject" style="font-size:0.8rem;" onclick="deleteTask('${t.id}','${(t.title||'').replace(/'/g,"\\'")}')">🗑 Delete</button>
+                    <button class="btn" style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;" onclick="editTask('${d.id}')">✏️ Edit</button>
+                    <button class="btn ${isApproved?'':'btn-gold'}" style="font-size:0.8rem;" onclick="toggleTaskApproval('${d.id}',${isApproved})">${isApproved?'⏸ Pause':'✅ Approve'}</button>
+                    <button class="btn btn-reject" style="font-size:0.8rem;" onclick="deleteTask('${d.id}','${t.title||''}')">🗑 Delete</button>
                 </div>`;
             list.appendChild(div);
         });
@@ -1502,7 +1438,6 @@ window.editTask = async (taskId) => {
     if(!snap.exists()) return showAdminToast('❌ Task not found');
     const t = snap.data();
 
-    // Remove any existing edit modal
     const existing = document.getElementById('edit-task-modal');
     if(existing) existing.remove();
 
@@ -1513,16 +1448,16 @@ window.editTask = async (taskId) => {
         <div style="background:#1e293b;border:1.5px solid var(--primary);border-radius:18px;padding:26px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,0.6);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
                 <h3 style="color:var(--primary);font-size:1.05rem;">✏️ Edit Task</h3>
-                <button onclick="document.getElementById('edit-task-modal').remove()" style="background:#334155;border:none;color:#aaa;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:0.9rem;">✕</button>
+                <button onclick="document.getElementById('edit-task-modal').remove()" style="background:#334155;border:none;color:#aaa;border-radius:8px;padding:5px 10px;cursor:pointer;">✕</button>
             </div>
             <div class="form-group">
                 <label>Task Title</label>
                 <input type="text" id="et-title" value="${(t.title||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
             </div>
             <div class="form-group">
-                <label>💎 Reward Diamond per completion</label>
-                <input type="number" id="et-reward" value="${t.rewardDiamond||1}" min="0.1" step="0.1" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
-                <small style="color:#94a3b8;font-size:0.75em;margin-top:4px;display:block;">Current: <b style="color:var(--diamond);">${t.rewardDiamond||1} 💎</b></small>
+                <label>💎 Reward TP per completion</label>
+                <input type="number" id="et-reward" value="${t.rewardDiamond||10}" min="1" step="1" style="width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;color:white;border-radius:9px;font-family:inherit;outline:none;">
+                <small style="color:#94a3b8;font-size:0.75em;margin-top:4px;display:block;">Current: <b style="color:var(--diamond);">${t.rewardDiamond||10} TP</b></small>
             </div>
             <div class="form-group">
                 <label>Max Completions (0 = Unlimited)</label>
@@ -1539,39 +1474,32 @@ window.editTask = async (taskId) => {
             </div>
         </div>`;
     document.body.appendChild(modal);
-    // Focus reward field
     document.getElementById('et-reward').focus();
 };
 
 window.saveEditTask = async (taskId) => {
-    const msg = document.getElementById('et-msg');
-    const btn = document.getElementById('et-save-btn');
-    const title    = document.getElementById('et-title').value.trim();
-    const reward   = parseFloat(document.getElementById('et-reward').value);
-    const maxComp  = parseInt(document.getElementById('et-maxcomp').value);
-    const url      = document.getElementById('et-url').value.trim();
+    const msg   = document.getElementById('et-msg');
+    const btn   = document.getElementById('et-save-btn');
+    const title  = document.getElementById('et-title').value.trim();
+    const reward = parseInt(document.getElementById('et-reward').value);
+    const maxComp= parseInt(document.getElementById('et-maxcomp').value);
+    const url    = document.getElementById('et-url').value.trim();
 
-    if(!title)        { msg.style.color='var(--danger-color)'; msg.textContent='❌ Title cannot be empty.'; return; }
-    if(isNaN(reward)||reward<=0) { msg.style.color='var(--danger-color)'; msg.textContent='❌ Invalid reward amount.'; return; }
+    if(!title)            { msg.style.color='#f87171'; msg.textContent='❌ Title cannot be empty.'; return; }
+    if(isNaN(reward)||reward<1){ msg.style.color='#f87171'; msg.textContent='❌ Reward must be at least 1 TP.'; return; }
 
-    btn.disabled = true;
-    btn.textContent = '⏳ Saving...';
+    btn.disabled=true; btn.textContent='⏳ Saving...';
     try {
         await updateDoc(doc(db,'tasks',taskId), {
-            title,
-            rewardDiamond: reward,
-            rewardPoints:  reward,
-            maxCompletions: isNaN(maxComp) ? 100 : maxComp,
-            url,
+            title, rewardDiamond: reward, rewardPoints: reward,
+            maxCompletions: isNaN(maxComp)?100:maxComp, url,
         });
         showAdminToast('✅ Task updated successfully!');
         document.getElementById('edit-task-modal').remove();
         loadAllTasks('all');
     } catch(e) {
-        msg.style.color = 'var(--danger-color)';
-        msg.textContent = '❌ Error: ' + e.message;
-        btn.disabled = false;
-        btn.textContent = '💾 Save Changes';
+        msg.style.color='#f87171'; msg.textContent='❌ Error: '+e.message;
+        btn.disabled=false; btn.textContent='💾 Save Changes';
     }
 };
 
@@ -1599,9 +1527,9 @@ window.deleteTask = async (taskId, title) => {
 window.editDiamond = async (uid) => { editBalance(uid, 'diamond'); };
 
 window.editBalance = async (uid, type) => {
-    const label = type === 'ton' ? 'TON' : 'Diamond 💎';
+    const label = type === 'ton' ? 'TON' : 'TP 💎';
     const field = type === 'ton' ? 'tonBalance' : 'diamondBalance';
-    const a = prompt(`Send ${label} to user.\nUse "+" to add or "-" to subtract.\nE.g. 0.5 or -10:`);
+    const a = prompt(`Send ${label} to user.\nUse positive to add, negative to subtract.\nE.g. 100 or -50:`);
     if (!a || isNaN(a)) return;
     const val = parseFloat(a);
     try {
