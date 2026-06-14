@@ -164,7 +164,9 @@
             <div class="dash-card"><h3>Total Users</h3><p class="count" id="dash-total-users">...</p></div>
             <div class="dash-card"><h3>Daily Joined</h3><p class="count" id="dash-daily-users">0</p></div>
             <div class="dash-card"><h3>Pending Withdraw</h3><p class="count" id="dash-pending-withdrawals" style="color:var(--danger-color);">0</p></div>
+            <div class="dash-card"><h3>Total Withdrawals</h3><p class="count" id="dash-total-withdrawals" style="color:#10b981;">0</p></div>
             <div class="dash-card"><h3>Pending Tasks</h3><p class="count" id="dash-pending-tasks" style="color:var(--accent);">0</p></div>
+            <div class="dash-card"><h3>Total Live Tasks</h3><p class="count" id="dash-total-tasks" style="color:#818cf8;">0</p></div>
         </div>
     </div>
 
@@ -613,27 +615,30 @@ document.getElementById('createAdminTaskForm').addEventListener('submit', async 
 // ── DASHBOARD OVERVIEW ──
 async function loadDashboard() {
     try {
-        const [uSnap, wSnap, tSnap] = await Promise.all([
+        const [uSnap, wPendingSnap, wTotalSnap, tPendingSnap, tLiveSnap] = await Promise.all([
             getCountFromServer(collection(db,'users')),
             getCountFromServer(query(collection(db,'withdrawals'), where('status','==','pending'))),
-            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false)))
+            getCountFromServer(collection(db,'withdrawals')),
+            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',false))),
+            getCountFromServer(query(collection(db,'tasks'), where('isApproved','==',true)))
         ]);
-        document.getElementById('dash-total-users').textContent = uSnap.data().count;
-        document.getElementById('dash-pending-withdrawals').textContent = wSnap.data().count;
-        document.getElementById('dash-pending-tasks').textContent = tSnap.data().count;
 
-        const pCount = wSnap.data().count;
+        document.getElementById('dash-total-users').textContent        = uSnap.data().count;
+        document.getElementById('dash-pending-withdrawals').textContent = wPendingSnap.data().count;
+        document.getElementById('dash-total-withdrawals').textContent   = wTotalSnap.data().count;
+        document.getElementById('dash-pending-tasks').textContent       = tPendingSnap.data().count;
+        document.getElementById('dash-total-tasks').textContent         = tLiveSnap.data().count;
+
+        const pCount = wPendingSnap.data().count;
         document.getElementById('nav-pending-count').textContent = pCount;
         document.getElementById('nav-pending-count').style.display = pCount > 0 ? 'inline' : 'none';
 
-        // UTC+6 BST Today Calculations
+        // UTC+6 BST Today
         const nowUTC = new Date();
         const bstOffset = 6 * 60 * 60 * 1000;
         const nowBST = new Date(nowUTC.getTime() + bstOffset);
         const todayBST = new Date(Date.UTC(
-            nowBST.getUTCFullYear(),
-            nowBST.getUTCMonth(),
-            nowBST.getUTCDate(),
+            nowBST.getUTCFullYear(), nowBST.getUTCMonth(), nowBST.getUTCDate(),
             0, 0, 0, 0
         ) - bstOffset);
 
@@ -642,7 +647,7 @@ async function loadDashboard() {
         );
         document.getElementById('dash-daily-users').textContent = dailySnap.data().count;
 
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error('[loadDashboard]', e); }
 }
 
 // ── WITHDRAWALS ──
@@ -687,10 +692,12 @@ async function loadWithdrawals(filter = 'pending') {
                 }
             } catch(e){}
 
-            const isPending  = wd.status === 'pending';
-            const isApproved = wd.status === 'approved';
-            const walletAddr = wd.details || 'N/A';
-            const statusColor = isApproved ? 'var(--success-color)' : wd.status === 'rejected' ? 'var(--danger-color)' : '#FFC107';
+            const isPending   = wd.status === 'pending';
+            const isCompleted = wd.status === 'completed' || wd.status === 'approved';
+            const isRejected  = wd.status === 'rejected';
+            const walletAddr  = wd.details || 'N/A';
+            const statusColor = isCompleted ? 'var(--success-color)' : isRejected ? 'var(--danger-color)' : '#FFC107';
+            const statusLabel = isCompleted ? 'COMPLETED' : isRejected ? 'REJECTED' : 'PENDING';
 
             const dAmt = wd.diamondAmount || 0;
             let convertedStr = '';
@@ -706,14 +713,14 @@ async function loadWithdrawals(filter = 'pending') {
 
             const div = document.createElement('div');
             div.className = 'card-item';
-            div.style.borderColor = isApproved ? 'rgba(16,185,129,0.35)' : isPending ? 'rgba(245,158,11,0.35)' : 'rgba(239,68,68,0.35)';
+            div.style.borderColor = isCompleted ? 'rgba(16,185,129,0.35)' : isPending ? 'rgba(245,158,11,0.35)' : 'rgba(239,68,68,0.35)';
             div.innerHTML = `
                 <div class="card-header">
                     <div>
                         <span class="username">@${userInfo.username || username || 'User'}</span>
                         <span class="userid">${wd.userId}</span>
                     </div>
-                    <span style="background:${statusColor}; color:#000; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">${(wd.status||'pending').toUpperCase()}</span>
+                    <span style="background:${statusColor}; color:#000; padding:3px 10px; border-radius:5px; font-weight:800; font-size:0.75em;">${statusLabel}</span>
                 </div>
                 <div class="card-stats">
                     <div class="stat-row"><span>📅 Date:</span><span class="stat-val" style="color:#aaa; font-size:0.82em;">${dateStr}</span></div>
@@ -1539,32 +1546,46 @@ window.editBalance = async (uid, type) => {
     } catch(e) { alert('Error: ' + e.message); }
 };
 
-// ── Withdrawal Approvals/Rejections (Atomic Transaction Level - NO API required) ──
+// ── Withdrawal Approvals/Rejections — API call with user notification ──
 window.actionWd = async (id, type, uid, amt) => {
-    if (!confirm(`Confirm ${type === 'approve' ? '✅ Approve' : '❌ Reject & Refund'}?`)) return;
-    const btns = document.querySelectorAll(`[data-wd-id="${id}"]`);
-    btns.forEach(b => { b.disabled = true; b.textContent = '⏳...'; });
-    try {
-        await runTransaction(db, async (transaction) => {
-            const wRef = doc(db, 'withdrawals', id);
-            const uRef = doc(db, 'users', uid);
-            
-            const wSnap = await transaction.get(wRef);
-            if (!wSnap.exists()) throw new Error("Withdrawal record not found.");
-            if (wSnap.data().status !== 'pending') throw new Error("Already updated/processed.");
+    const label = type === 'approve' ? '✅ Approve & Notify User' : '❌ Reject & Refund';
+    if (!confirm(`Confirm: ${label}?\n\nUser will receive a Telegram notification.`)) return;
 
-            transaction.update(wRef, { status: type === 'approve' ? 'approved' : 'rejected', updatedAt: serverTimestamp() });
-            
-            if (type === 'reject') {
-                transaction.update(uRef, { diamondBalance: increment(amt) });
-            }
+    const approveBtn = document.querySelector(`button[onclick*="actionWd('${id}','approve'"]`);
+    const rejectBtn  = document.querySelector(`button[onclick*="actionWd('${id}','reject'"]`);
+    if(approveBtn){ approveBtn.disabled = true; approveBtn.textContent = '⏳...'; }
+    if(rejectBtn) { rejectBtn.disabled  = true; rejectBtn.textContent  = '⏳...'; }
+
+    let adminNote = '';
+    if(type === 'reject'){
+        adminNote = prompt('Reason for rejection (optional):') || '';
+    }
+
+    try {
+        const res = await fetch('/api/approveDeposit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ withdrawId: id, action: type, adminNote })
         });
-        showAdminToast(type === 'approve' ? '✅ Withdrawal approved!' : '❌ Withdrawal rejected and diamonds refunded.');
-        loadWithdrawals('pending');
-        loadDashboard();
+        const data = await res.json();
+
+        if(data.success){
+            if(type === 'approve'){
+                showAdminToast(`✅ Withdrawal approved! User notified on Telegram.`);
+            } else {
+                showAdminToast(`❌ Rejected & ${amt} TP refunded to user. User notified.`);
+            }
+            loadWithdrawals('pending');
+            loadDashboard();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+            if(approveBtn){ approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
+            if(rejectBtn) { rejectBtn.disabled  = false; rejectBtn.textContent  = '❌ Refund & Reject'; }
+        }
     } catch(e) {
-        alert('Error: ' + e.message);
-        btns.forEach(b => { b.disabled = false; b.textContent = type === 'approve' ? '✅ Approve' : '❌ Refund & Reject'; });
+        alert('Network error: ' + e.message);
+        if(approveBtn){ approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
+        if(rejectBtn) { rejectBtn.disabled  = false; rejectBtn.textContent  = '❌ Refund & Reject'; }
     }
 };
 
