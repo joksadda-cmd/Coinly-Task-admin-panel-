@@ -1562,7 +1562,7 @@ window.actionWd = async (id, type, uid, amt) => {
     }
 
     try {
-        const res = await fetch('/api/approveDeposit', {
+        const res = await fetch(`${API}/api/approveDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ withdrawId: id, action: type, adminNote })
