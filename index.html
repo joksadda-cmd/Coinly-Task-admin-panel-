@@ -749,6 +749,7 @@ async function loadWithdrawals(filter = 'pending') {
                 <div class="card-actions" style="margin-top:10px;">
                     <button class="btn btn-approve" onclick="actionWd('${wd.id}','approve','${wd.userId}',${dAmt})">✅ Approve</button>
                     <button class="btn btn-reject" onclick="actionWd('${wd.id}','reject','${wd.userId}',${dAmt})">❌ Refund & Reject</button>
+                    <button class="btn" style="background:#7f1d1d;color:#fca5a5;font-size:0.78rem;" onclick="actionWd('${wd.id}','reject_no_refund','${wd.userId}',${dAmt})">🚫 Fake (No Refund)</button>
                 </div>` : `<p style="text-align:center; font-size:0.82em; color:#666; margin:6px 0 0;">Processed</p>`}
             `;
             list.appendChild(div);
@@ -1548,44 +1549,55 @@ window.editBalance = async (uid, type) => {
 
 // ── Withdrawal Approvals/Rejections — API call with user notification ──
 window.actionWd = async (id, type, uid, amt) => {
-    const label = type === 'approve' ? '✅ Approve & Notify User' : '❌ Reject & Refund';
-    if (!confirm(`Confirm: ${label}?\n\nUser will receive a Telegram notification.`)) return;
+    const isNoRefund = type === 'reject_no_refund';
+    const isReject   = type === 'reject' || isNoRefund;
+
+    let confirmMsg = '';
+    if(type === 'approve')         confirmMsg = '✅ Approve & notify user?';
+    else if(isNoRefund)            confirmMsg = '🚫 Mark as FAKE — NO refund to user. Are you sure?';
+    else                           confirmMsg = '❌ Reject & refund TP to user?';
+
+    if (!confirm(confirmMsg)) return;
+
+    let adminNote = '';
+    if(isReject){
+        adminNote = prompt('Reason for rejection (optional):') || '';
+    }
 
     const approveBtn = document.querySelector(`button[onclick*="actionWd('${id}','approve'"]`);
     const rejectBtn  = document.querySelector(`button[onclick*="actionWd('${id}','reject'"]`);
-    if(approveBtn){ approveBtn.disabled = true; approveBtn.textContent = '⏳...'; }
-    if(rejectBtn) { rejectBtn.disabled  = true; rejectBtn.textContent  = '⏳...'; }
-
-    let adminNote = '';
-    if(type === 'reject'){
-        adminNote = prompt('Reason for rejection (optional):') || '';
-    }
+    const fakeBtn    = document.querySelector(`button[onclick*="actionWd('${id}','reject_no_refund'"]`);
+    [approveBtn, rejectBtn, fakeBtn].forEach(b => { if(b){ b.disabled=true; b.textContent='⏳...'; } });
 
     try {
         const res = await fetch(`${API}/api/approveDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ withdrawId: id, action: type, adminNote })
+            body: JSON.stringify({
+                withdrawId: id,
+                action: isNoRefund ? 'reject_no_refund' : type,
+                adminNote
+            })
         });
         const data = await res.json();
 
         if(data.success){
             if(type === 'approve'){
                 showAdminToast(`✅ Withdrawal approved! User notified on Telegram.`);
+            } else if(isNoRefund){
+                showAdminToast(`🚫 Marked as fake. No TP refunded.`);
             } else {
-                showAdminToast(`❌ Rejected & ${amt} TP refunded to user. User notified.`);
+                showAdminToast(`❌ Rejected & ${amt} TP refunded to user.`);
             }
             loadWithdrawals('pending');
             loadDashboard();
         } else {
             alert('Error: ' + (data.error || 'Unknown error'));
-            if(approveBtn){ approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
-            if(rejectBtn) { rejectBtn.disabled  = false; rejectBtn.textContent  = '❌ Refund & Reject'; }
+            [approveBtn, rejectBtn, fakeBtn].forEach(b => { if(b) b.disabled=false; });
         }
     } catch(e) {
         alert('Network error: ' + e.message);
-        if(approveBtn){ approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
-        if(rejectBtn) { rejectBtn.disabled  = false; rejectBtn.textContent  = '❌ Refund & Reject'; }
+        [approveBtn, rejectBtn, fakeBtn].forEach(b => { if(b) b.disabled=false; });
     }
 };
 
