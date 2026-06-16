@@ -357,7 +357,15 @@
             <div class="settings-card">
                 <h3>✅ Core Task Reward (TP)</h3>
                 <div class="form-group"><label>Default Task Reward (TP)</label><input type="number" id="cfg-task-reward" value="10"></div>
-                <div class="form-group"><label>Referral Bonus (TP)</label><input type="number" id="cfg-ref-reward" value="100"></div>
+                <div class="form-group">
+                    <label>Referral Bonus — 3-Step System</label>
+                    <div style="background:#0f172a;border:1.5px solid #334155;border-radius:9px;padding:10px 13px;font-size:0.82rem;color:#94a3b8;line-height:1.8;">
+                        🥇 Step 1 (Join): <b style="color:#4ade80;">50 TP</b><br>
+                        🥈 Step 2 (10 Tasks): <b style="color:#fbbf24;">80 TP</b><br>
+                        🥉 Step 3 (20 Ads): <b style="color:#f87171;">100 TP</b><br>
+                        <span style="font-size:0.72rem;">Total: 230 TP · Set in claimRefer.js</span>
+                    </div>
+                </div>
                 <button class="submit-btn" onclick="saveTaskRewards()">💾 Save Task Rewards</button>
             </div>
 
@@ -972,7 +980,8 @@ window.saveTaskRewards = async () => {
     try {
         await setDoc(doc(db,'config','taskRewards'), {
             defaultTaskReward: parseFloat(document.getElementById('cfg-task-reward').value),
-            referralReward:    parseFloat(document.getElementById('cfg-ref-reward').value),
+            referralStep1: 50, referralStep2: 80, referralStep3: 100, // fixed in claimRefer.js
+            referralReward: 230, // total, for display purposes only
             updatedAt:         serverTimestamp()
         });
         alert('✅ Task Rewards saved successfully!');
@@ -1012,7 +1021,9 @@ window.loadLiveConfig = async () => {
             const t = taskSnap.data();
             html += `<div style="margin-bottom:10px;"><b style="color:var(--primary); font-size:0.82em;">✅ Task Rewards</b>
                 <div class="reward-row"><span class="reward-label">Per Task Reward</span><span class="reward-val">${t.defaultTaskReward} TP</span></div>
-                <div class="reward-row"><span class="reward-label">Referral Bonus</span><span class="reward-val">${t.referralReward} TP</span></div></div>`;
+                <div class="reward-row"><span class="reward-label">Referral (Step 1: Join)</span><span class="reward-val">${t.referralStep1||50} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Referral (Step 2: 10 Tasks)</span><span class="reward-val">${t.referralStep2||80} TP</span></div>
+                <div class="reward-row"><span class="reward-label">Referral (Step 3: 20 Ads)</span><span class="reward-val">${t.referralStep3||100} TP</span></div></div>`;
         }
         if (wdSnap.exists()) {
             const w = wdSnap.data();
